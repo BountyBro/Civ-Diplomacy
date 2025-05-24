@@ -4,7 +4,7 @@ import planet
 from model import MAX_CULTURE, proclaim_culture_victory
 
 class Civ:
-  def __init__(self, civ_id, tech, culture, military):
+  def __init__(self, civ_id, tech= 0, culture= 0, military= 0):
     # The civilization's ID
     self.civ_id = civ_id
 
