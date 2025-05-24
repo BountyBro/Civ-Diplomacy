@@ -5,7 +5,7 @@ import civ
 class Planet:
   def __init__(self, id, pos_x, pos_y):
     self.id = id
-    self.civ = None  # The civilization that owns this planet
+    self.civ = None     # The civilization that owns this planet
     self.pos_x = pos_x  # The x-coordinate of the planet
     self.pos_y = pos_y  # The y-coordinate of the planet
 
