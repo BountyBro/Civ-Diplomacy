@@ -8,13 +8,13 @@ import numpy as np
 from random import sample
 import random
 import visualize as vis
-from civ import Civ
+from civ import Civ, proclaim_culture_victory
 from planet import Planet
 
 
 
 ##### USER-ADJUSTABLE #####
-MAX_CULTURE = 100       # Value of culture (see 'civ.py') required to trigger culture end condition for a civ.
+# MAX_CULTURE = 100 # Moved to civ.py
 MIN_PLANETS = 3         # Inclusive lower bound integer for accepted range of planet count.
 MAX_PLANETS = 25        # Inclusive higher bound integer for accepted range of planet count.
 MIN_GRID_HEIGHT = 10    # Inclusive lower bound integer determining minimum grid height (y dimension).
@@ -39,7 +39,7 @@ class Model():
         isAvailable = np.full(shape= self.grid.shape, fill_value = True)
         coords = np.array([[(row, col) for col in range(self.grid.shape[1])] for row in range(self.grid.shape[0])])
         for i in range(self.num_planets):
-            random_available_coord = sample(coords[isAvailable])
+            random_available_coord = sample(coords[isAvailable].tolist(), 1)[0]
             self.list_planets.append(Planet(i, random_available_coord[0], random_available_coord[1]))
             isAvailable[random_available_coord[0], random_available_coord[1]] = False
             self.list_planets[i].assign_civ(self.list_civs[i])
@@ -64,7 +64,6 @@ class Model():
             for j in range(self.num_planets)
         ]
     
-    # can civ1 fly to civ2? 
     def can_interact(self, civ1, civ2):
         for planet1 in civ1.get_planets().values():
             for planet2 in civ2.get_planets().values():
@@ -72,21 +71,19 @@ class Model():
                     (planet1.get_pos()[1] - planet2.get_pos()[1]) ** 2) ** 0.5
                 if civ1.get_tech() >= dist:
                     return True
+        return False # Ensure False is returned if no interaction is possible
     
-    def civs_cooperate(civ1, civ2):
-        # Cooperation logic here (e.g., sharing resources)
+    def civs_cooperate(self, civ1, civ2):
         civ1.tech += COOPERATION_BOOST
         civ2.tech += COOPERATION_BOOST
         civ1.culture += COOPERATION_BOOST
         civ2.culture += COOPERATION_BOOST
 
-    def civs_war(civ1, civ2):
-        # War logic here (e.g., military conflict)
-        # TODO: implement war logic
-        pass
-
+    def civs_war(self, civ1, civ2):
+        pass # War logic placeholder
 
     def interact_civs(self):
+        interactions = [] 
         for i, civ1 in enumerate(self.list_civs):
             if not civ1.alive:
                 continue
@@ -94,16 +91,15 @@ class Model():
                 if i >= j or not civ2.alive:
                     continue
 
-                if self.can_interact(civ1, civ2) and self.can_interact(civ2, civ1) and civ1.get_id() != civ2.get_id():
+                if self.can_interact(civ1, civ2) and self.can_interact(civ2, civ1):
+                    interactions.append({'civ1': civ1, 'civ2': civ2, 'type': 'cooperation' if civ1.get_friendly() and civ2.get_friendly() else 'war'})
                     if civ1.get_friendly() == 1 and civ2.get_friendly() == 1:
                         print(f"Civilizations {civ1.get_id()} and {civ2.get_id()} are cooperating.")
-                        # Cooperation
                         self.civs_cooperate(civ1, civ2)
                     elif civ1.get_friendly() == 0 or civ2.get_friendly() == 0:
                         print(f"Civilizations {civ1.get_id()} and {civ2.get_id()} are at war!")
-                        # War
                         self.civs_war(civ1, civ2)
-
+        return interactions
 
     def run_simulation(self):
         t = 0
@@ -111,27 +107,31 @@ class Model():
             t += 1
             print(f"Turn {t}")
             
-            # Update attributes
             for civ in self.list_civs:
                 if not civ.alive:
                     continue
                 civ.update_attributes(civ.tech, civ.culture, civ.military, civ.friendly)
-                if civ.get_culture() >= MAX_CULTURE:
-                    proclaim_culture_victory(civ.get_id())
-                    return
+                if civ.has_won_culture_victory:
+                    message = f"Civilization {civ.get_id()} has achieved a culture victory!"
+                    # Yield message multiple times for display duration
+                    yield message
+                    yield message
+                    yield message
+                    return # Stop simulation
 
-            self.interact_civs()
-            
-            # Check if only one civilization is left
+            interactions = self.interact_civs()
+            yield t, interactions
+
             alive_civs = [civ for civ in self.list_civs if civ.alive]
             if len(alive_civs) == 1:
-                print(f"Civilization {alive_civs[0].get_id()} has won the simulation through military!")
-                return 
-            
-
-
-
-
-def proclaim_culture_victory(civ_id):
-    # we need to stop the simulation and declare a winner
-    print(f"Civilization {civ_id} has achieved a culture victory!")
+                message = f"Civilization {alive_civs[0].get_id()} has won the simulation through military!"
+                yield message
+                yield message
+                yield message
+                return
+            if not alive_civs:
+                message = "All civilizations have been eliminated."
+                yield message
+                yield message
+                yield message
+                return

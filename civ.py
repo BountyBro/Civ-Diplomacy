@@ -1,7 +1,13 @@
 # The civilization agent file for tracking a civilization's
 import random
 import planet
-from model import MAX_CULTURE, proclaim_culture_victory
+# from model import MAX_CULTURE, proclaim_culture_victory # Removed for circular import fix
+
+MAX_CULTURE = 100 # Defined here
+
+def proclaim_culture_victory(civ_id):
+    # we need to stop the simulation and declare a winner
+    print(f"Civilization {civ_id} has achieved a culture victory!")
 
 class Civ:
   def __init__(self, civ_id, tech= 0, culture= 0, military= 0):
@@ -12,23 +18,25 @@ class Civ:
     self.tech = tech
     self.culture = culture
     self.military = military
-    self.friendly = random.choice(0,1)  # Boolean integer value (i.e. 0 or 1). 0 marking aggressive civs, 1 marking cooperative civs.
+    self.friendly = random.choice([0,1])  # Corrected: Was random.choice(0,1)
     self.num_planets = 0      # Positive integer value. civ loses at self.num_planets == 0.
     self.planets = {}         # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
 
     self.tech_growth = random.randint(1, 3)
-    self.mil_growth = random.randint(1, 3)
+    self.mil_growth = random.randint(1, 3) # Corrected: Was self.military_growth in some contexts
     self.culture_growth = random.randint(1, 3)
 
     self.alive = True
+    self.has_won_culture_victory = False # Added flag for clean stop
 
   def update_attributes(self, tech, culture, military, friendly):
     self.tech += self.tech_growth
     self.culture += self.culture_growth
-    self.military += self.military_growth
+    self.military += self.mil_growth # Corrected attribute name
 
-    if self.culture >= MAX_CULTURE:
-      proclaim_culture_victory(self.civ_id)
+    if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
+      self.has_won_culture_victory = True # Set flag
+      proclaim_culture_victory(self.civ_id) # Call local version
 
   def check_if_dead(self, t):
     if self.num_planets == 0:
