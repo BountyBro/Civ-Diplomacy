@@ -23,6 +23,7 @@ MAX_GRID_HEIGHT = 50    # Inclusive higher bound integer determining maximum gri
 MAX_GRID_WIDTH = 50     # Inclusive higher bound integer determining maximum grid width (x dimension).
 WAR_WIN_BOOST = 2         # Value of tech and military boost for winning a war.
 COOPERATION_BOOST = 1      # Value of tech and culture boost for cooperating with another civ.
+WAR_PENALTY = 1            # Value of tech and culture penalty for an attacker losing a war.
 
 
 ##### CLASSES #####
@@ -79,10 +80,65 @@ class Model():
         civ1.culture += COOPERATION_BOOST
         civ2.culture += COOPERATION_BOOST
 
-    def civs_war(self, civ1, civ2):
-        pass # War logic placeholder
+    def civs_war(self, c1, c2, t): # Actual war mechanics happen here
+        # Determine attacker and defender FOR MECHANICS
+        if c1.get_friendly() == 0 and c2.get_friendly() == 1:
+            attacker = c1
+            defender = c2
+        elif c2.get_friendly() == 0 and c1.get_friendly() == 1:
+            attacker = c2
+            defender = c1
+        else: 
+            attacker = c1
+            defender = c2
+        # The rest of civs_war logic remains the same (calculating power, battle, consequences...)
+        # This internal attacker/defender is for who fights whom and who gets what.
+        # The one stored in interaction_details is for the visualizer's arrow direction.
 
-    def interact_civs(self):
+        print(f"Civ {attacker.get_id()} (Is Aggressive: {attacker.get_friendly()==0}) is ACTUALLY attacking Civ {defender.get_id()} (Is Aggressive: {defender.get_friendly()==0}).")
+
+        # Tech gives a bonus to combat effectiveness
+        attacker_power = attacker.get_military() * (1 + (0.1 * attacker.get_tech()))
+        defender_power = defender.get_military() * (1 + (0.1 * defender.get_tech()))
+
+        total_combat_power = attacker_power + defender_power
+
+        if total_combat_power == 0: # Stalemate if both have zero power
+            print(f"Stalemate between Civ {attacker.get_id()} and Civ {defender.get_id()} due to zero combat power.")
+            return
+
+        attacker_win_chance = attacker_power / total_combat_power
+
+        if random.random() < attacker_win_chance:
+            # Attacker wins
+            print(f"Attacker Civ {attacker.get_id()} wins against Civ {defender.get_id()}!")
+            attacker.military += WAR_WIN_BOOST # Attacker gets military boost
+            attacker.tech += WAR_WIN_BOOST     # Attacker gets tech boost
+
+            defender_planets = list(defender.get_planets().values())
+            if defender_planets: # Defender has planets to lose
+                conquered_planet = random.choice(defender_planets)
+                print(f"Civ {attacker.get_id()} conquers planet {conquered_planet.get_id()} from Civ {defender.get_id()}.")
+                conquered_planet.assign_civ(attacker) # Planet changes owner
+                
+                # Check if defender is eliminated
+                if defender.check_if_dead(t):
+                    print(f"Civ {defender.get_id()} has been eliminated from the war by Civ {attacker.get_id()}.")
+            else:
+                print(f"Defender Civ {defender.get_id()} had no planets to conquer.")
+        else:
+            # Defender wins (Attacker loses)
+            print(f"Defender Civ {defender.get_id()} wins against Civ {attacker.get_id()}!")
+            defender.military += WAR_WIN_BOOST # Defender gets military boost
+            defender.tech += WAR_WIN_BOOST     # Defender gets tech boost
+            defender.culture += WAR_WIN_BOOST  # Defender gets culture boost
+
+            # Attacker takes a hit to tech and culture
+            attacker.tech = max(0, attacker.tech - WAR_PENALTY)
+            attacker.culture = max(0, attacker.culture - WAR_PENALTY)
+            print(f"Attacker Civ {attacker.get_id()} loses {WAR_PENALTY} tech and culture.")
+
+    def interact_civs(self, t): # Added turn 't'
         interactions = [] 
         for i, civ1 in enumerate(self.list_civs):
             if not civ1.alive:
@@ -92,13 +148,42 @@ class Model():
                     continue
 
                 if self.can_interact(civ1, civ2) and self.can_interact(civ2, civ1):
-                    interactions.append({'civ1': civ1, 'civ2': civ2, 'type': 'cooperation' if civ1.get_friendly() and civ2.get_friendly() else 'war'})
+                    interaction_details = {'civ1': civ1, 'civ2': civ2} # Base details
+
                     if civ1.get_friendly() == 1 and civ2.get_friendly() == 1:
+                        interaction_details['type'] = 'cooperation'
                         print(f"Civilizations {civ1.get_id()} and {civ2.get_id()} are cooperating.")
                         self.civs_cooperate(civ1, civ2)
                     elif civ1.get_friendly() == 0 or civ2.get_friendly() == 0:
-                        print(f"Civilizations {civ1.get_id()} and {civ2.get_id()} are at war!")
-                        self.civs_war(civ1, civ2)
+                        interaction_details['type'] = 'war'
+                        current_attacker, current_defender = None, None # For clarity
+
+                        # Determine attacker and defender for visualization metadata AND mechanics
+                        if civ1.get_friendly() == 0 and civ2.get_friendly() == 1:
+                            current_attacker = civ1
+                            current_defender = civ2
+                        elif civ2.get_friendly() == 0 and civ1.get_friendly() == 1:
+                            current_attacker = civ2
+                            current_defender = civ1
+                        else: # Both same friendly status, or both aggressive. Default c1 attacks.
+                            current_attacker = civ1 
+                            current_defender = civ2
+                        
+                        interaction_details['attacker'] = current_attacker
+                        interaction_details['defender'] = current_defender
+
+                        # Store initial position of a defender planet for arrow targeting
+                        defender_initial_planets = list(current_defender.get_planets().values())
+                        if defender_initial_planets:
+                            interaction_details['defender_target_planet_initial_pos'] = defender_initial_planets[0].get_pos()
+                        else:
+                            # If defender has no planets initially, arrow might not be meaningful or drawable for target
+                            interaction_details['defender_target_planet_initial_pos'] = None 
+
+                        print(f"Civilizations {civ1.get_id()} and {civ2.get_id()} are at war! (Visual Attacker: {current_attacker.get_id()})")
+                        self.civs_war(civ1, civ2, t) # Actual war mechanics, uses its own attacker/defender logic now.
+                    
+                    interactions.append(interaction_details)
         return interactions
 
     def run_simulation(self):
@@ -119,7 +204,7 @@ class Model():
                     yield message
                     return # Stop simulation
 
-            interactions = self.interact_civs()
+            interactions = self.interact_civs(t) # Pass turn 't'
             yield t, interactions
 
             alive_civs = [civ for civ in self.list_civs if civ.alive]

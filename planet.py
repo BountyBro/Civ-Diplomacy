@@ -9,10 +9,14 @@ class Planet:
     self.pos_x = pos_x  # The x-coordinate of the planet
     self.pos_y = pos_y  # The y-coordinate of the planet
 
-  def assign_civ(self, civ):
-    self.civ = civ
-    self.civ.planets[self.id] = self
-    self.civ.num_planets += 1
+  def assign_civ(self, new_owner_civ):
+    if self.civ: # If there's an existing owner, remove it first
+        self.remove_civ()
+    
+    self.civ = new_owner_civ
+    if new_owner_civ: # Ensure new_owner_civ is not None
+        new_owner_civ.planets[self.id] = self
+        new_owner_civ.num_planets += 1
 
   def remove_civ(self):
     if self.civ:
