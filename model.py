@@ -80,22 +80,8 @@ class Model():
         civ1.culture += COOPERATION_BOOST
         civ2.culture += COOPERATION_BOOST
 
-    def civs_war(self, c1, c2, t): # Actual war mechanics happen here
-        # Determine attacker and defender FOR MECHANICS
-        if c1.get_friendly() == 0 and c2.get_friendly() == 1:
-            attacker = c1
-            defender = c2
-        elif c2.get_friendly() == 0 and c1.get_friendly() == 1:
-            attacker = c2
-            defender = c1
-        else: 
-            attacker = c1
-            defender = c2
-        # The rest of civs_war logic remains the same (calculating power, battle, consequences...)
-        # This internal attacker/defender is for who fights whom and who gets what.
-        # The one stored in interaction_details is for the visualizer's arrow direction.
-
-        print(f"Civ {attacker.get_id()} (Is Aggressive: {attacker.get_friendly()==0}) is ACTUALLY attacking Civ {defender.get_id()} (Is Aggressive: {defender.get_friendly()==0}).")
+    def civs_war(self, attacker, defender, t, targeted_planet): # actual_attacker, actual_defender, targeted_planet are passed directly
+        print(f"Civ {attacker.get_id()} is attacking Civ {defender.get_id()}, targeting planet {targeted_planet.get_id() if targeted_planet else 'N/A'}.")
 
         # Tech gives a bonus to combat effectiveness
         attacker_power = attacker.get_military() * (1 + (0.1 * attacker.get_tech()))
@@ -105,7 +91,7 @@ class Model():
 
         if total_combat_power == 0: # Stalemate if both have zero power
             print(f"Stalemate between Civ {attacker.get_id()} and Civ {defender.get_id()} due to zero combat power.")
-            return
+            return # No changes in this case
 
         attacker_win_chance = attacker_power / total_combat_power
 
@@ -115,28 +101,30 @@ class Model():
             attacker.military += WAR_WIN_BOOST # Attacker gets military boost
             attacker.tech += WAR_WIN_BOOST     # Attacker gets tech boost
 
-            defender_planets = list(defender.get_planets().values())
-            if defender_planets: # Defender has planets to lose
-                conquered_planet = random.choice(defender_planets)
-                print(f"Civ {attacker.get_id()} conquers planet {conquered_planet.get_id()} from Civ {defender.get_id()}.")
-                conquered_planet.assign_civ(attacker) # Planet changes owner
+            # Attacker conquers the specific targeted planet, if it's valid and still owned by the defender.
+            if targeted_planet and targeted_planet.get_civ() == defender:
+                print(f"Civ {attacker.get_id()} conquers planet {targeted_planet.get_id()} from Civ {defender.get_id()}.")
+                targeted_planet.assign_civ(attacker) # Planet changes owner
                 
-                # Check if defender is eliminated
+                # Check if defender is eliminated after losing the planet
                 if defender.check_if_dead(t):
-                    print(f"Civ {defender.get_id()} has been eliminated from the war by Civ {attacker.get_id()}.")
-            else:
-                print(f"Defender Civ {defender.get_id()} had no planets to conquer.")
+                    print(f"Civ {defender.get_id()} has been eliminated by Civ {attacker.get_id()}.")
+            elif targeted_planet and targeted_planet.get_civ() != defender:
+                 print(f"Targeted planet {targeted_planet.get_id()} is no longer owned by defender Civ {defender.get_id()}. No conquest from this battle.")
+            elif not targeted_planet:
+                print(f"Defender Civ {defender.get_id()} had no specific planet targeted (e.g. no planets left to target). No conquest from this battle.")
         else:
-            # Defender wins (Attacker loses)
-            print(f"Defender Civ {defender.get_id()} wins against Civ {attacker.get_id()}!")
+            # Defender wins (Attacker loses the battle)
+            print(f"Defender Civ {defender.get_id()} wins the battle against attacker Civ {attacker.get_id()}!")
             defender.military += WAR_WIN_BOOST # Defender gets military boost
             defender.tech += WAR_WIN_BOOST     # Defender gets tech boost
             defender.culture += WAR_WIN_BOOST  # Defender gets culture boost
 
-            # Attacker takes a hit to tech and culture
+            # Attacker takes a hit to tech and culture for the failed attack
             attacker.tech = max(0, attacker.tech - WAR_PENALTY)
             attacker.culture = max(0, attacker.culture - WAR_PENALTY)
-            print(f"Attacker Civ {attacker.get_id()} loses {WAR_PENALTY} tech and culture.")
+            print(f"Attacker Civ {attacker.get_id()} loses {WAR_PENALTY} tech and culture due to failed attack.")
+            # No planets change hands if the defender wins the battle.
 
     def interact_civs(self, t): # Added turn 't'
         interactions = [] 
@@ -156,32 +144,44 @@ class Model():
                         self.civs_cooperate(civ1, civ2)
                     elif civ1.get_friendly() == 0 or civ2.get_friendly() == 0:
                         interaction_details['type'] = 'war'
-                        current_attacker, current_defender = None, None # For clarity
-
-                        # Determine attacker and defender for visualization metadata AND mechanics
-                        if civ1.get_friendly() == 0 and civ2.get_friendly() == 1:
-                            current_attacker = civ1
-                            current_defender = civ2
-                        elif civ2.get_friendly() == 0 and civ1.get_friendly() == 1:
-                            current_attacker = civ2
-                            current_defender = civ1
-                        else: # Both same friendly status, or both aggressive. Default c1 attacks.
-                            current_attacker = civ1 
-                            current_defender = civ2
+                        # Determine the actual attacker and defender for this war interaction
+                        actual_attacker, actual_defender = None, None
+                        if civ1.get_friendly() == 0 and civ2.get_friendly() == 1: # civ1 aggressive, civ2 friendly
+                            actual_attacker = civ1
+                            actual_defender = civ2
+                        elif civ2.get_friendly() == 0 and civ1.get_friendly() == 1: # civ2 aggressive, civ1 friendly
+                            actual_attacker = civ2
+                            actual_defender = civ1
+                        elif civ1.get_friendly() == 0 and civ2.get_friendly() == 0: # both aggressive
+                            # If both are aggressive, decide who attacks. For now, simple random choice or based on ID.
+                            # Let's make the one with lower ID the attacker for predictability in this case.
+                            if civ1.get_id() < civ2.get_id():
+                                actual_attacker = civ1
+                                actual_defender = civ2
+                            else:
+                                actual_attacker = civ2
+                                actual_defender = civ1
+                        else: # This case (both friendly but war determined) should be rare/avoided by earlier logic.
+                              # Default to civ1 attacking civ2 if it somehow occurs.
+                            actual_attacker = civ1
+                            actual_defender = civ2
                         
-                        interaction_details['attacker'] = current_attacker
-                        interaction_details['defender'] = current_defender
+                        interaction_details['attacker'] = actual_attacker # For visualization arrow
+                        interaction_details['defender'] = actual_defender # For visualization context
 
-                        # Store initial position of a defender planet for arrow targeting
-                        defender_initial_planets = list(current_defender.get_planets().values())
-                        if defender_initial_planets:
-                            interaction_details['defender_target_planet_initial_pos'] = defender_initial_planets[0].get_pos()
+                        # Determine the specific planet of the defender that is being targeted
+                        defender_target_planet_object = None
+                        defender_planets_list = list(actual_defender.get_planets().values())
+                        if defender_planets_list:
+                            # For simplicity, still targeting the first planet of the defender.
+                            # This could be made more sophisticated (e.g., closest, weakest, etc.)
+                            defender_target_planet_object = defender_planets_list[0]
+                            interaction_details['defender_target_planet_initial_pos'] = defender_target_planet_object.get_pos()
                         else:
-                            # If defender has no planets initially, arrow might not be meaningful or drawable for target
                             interaction_details['defender_target_planet_initial_pos'] = None 
 
-                        print(f"Civilizations {civ1.get_id()} and {civ2.get_id()} are at war! (Visual Attacker: {current_attacker.get_id()})")
-                        self.civs_war(civ1, civ2, t) # Actual war mechanics, uses its own attacker/defender logic now.
+                        print(f"War: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{defender_target_planet_object.get_id() if defender_target_planet_object else 'None'}")
+                        self.civs_war(actual_attacker, actual_defender, t, defender_target_planet_object)
                     
                     interactions.append(interaction_details)
         return interactions
@@ -210,12 +210,14 @@ class Model():
             alive_civs = [civ for civ in self.list_civs if civ.alive]
             if len(alive_civs) == 1:
                 message = f"Civilization {alive_civs[0].get_id()} has won the simulation through military!"
+                print(message) # Console print for military victory
                 yield message
                 yield message
                 yield message
                 return
             if not alive_civs:
                 message = "All civilizations have been eliminated."
+                print(message) # Console print for all civilizations eliminated
                 yield message
                 yield message
                 yield message
