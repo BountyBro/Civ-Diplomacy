@@ -21,25 +21,25 @@ def proclaim_culture_victory(civ_id):
 class Civ:
     def __init__(self, civ_id, tech= 0, culture= 0, military= 0):
         # Model Controllers:
-        self.civ_id = civ_id                        # The civilzation ID for unique identification and iteration.
-        self.num_planets = 0                        # Positive integer value. civ loses at self.num_planets == 0.
-        self.alive = True                           # Set to False when len(self.planets) == 0.
-        self.has_won_culture_victory = False        # Added flag for clean stop.
-        self.planets = {}                           # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
+        self.civ_id = civ_id                    # The civilzation ID for unique identification and iteration.
+        self.num_planets = 0                    # Positive integer value. civ loses at self.num_planets == 0.
+        self.alive = True                       # Set to False when len(self.planets) == 0.
+        self.has_won_culture_victory = False    # Added flag for clean stop.
+        self.planets = {}                       # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
         # Attributes:
-        self.friendly = choice([0,1])        # Corrected: Was random.choice(0,1)
-        self.culture = culture                      # The attribute that determines how close a civ is to a culture victory.
-        self.military = military                    # The attribute that determines a civ's odds of success in war.
-        self.tech = tech                            # The attribute that determines how far a civ can travel.
-        self.tech_growth = randint(1, 3)     # Controls the rate of the civ's technological growth.
-        self.mil_growth = randint(1, 3)      # Controls the rate of the civ's miilitary growth. Corrected: Was self.military_growth in some contexts
-        self.culture_growth = randint(1, 3)  # Controls the rate of the civ's cultural growth.    
+        self.friendly = choice([0,1])           # Corrected: Was random.choice(0,1)
+        self.culture = max(0, culture)          # The attribute that determines how close a civ is to a culture victory.
+        self.military = max(0, military)        # The attribute that determines a civ's odds of success in war.
+        self.tech = max(0, tech)                # The attribute that determines how far a civ can travel.
+        self.tech_growth = randint(1, 3)        # Controls the rate of the civ's technological growth.
+        self.mil_growth = randint(1, 3)         # Controls the rate of the civ's miilitary growth. Corrected: Was self.military_growth in some contexts
+        self.culture_growth = randint(1, 3)     # Controls the rate of the civ's cultural growth.    
         ''' NEW ATTRIBUTES - Daniil's suggestions:
-        self.population = 0                         # Guessing init_pop = 1, but do they need more to take over new planets?
-        self.growth = 0                             # Assuming this equates to #-of-steps to increment population where it takes X steps to do so.
-        self.growth_remainder = X                   # Placeholder in case of alternative growth control method. Holds #-of-steps until population increment.
-        self.economy = 0                            # Still not sure what this does functionally unless we make resources modify attributes.
-        self.resources = []                         # Stores resources gained through owned planets or trade.
+        self.population = 0                     # Guessing init_pop = 1, but do they need more to take over new planets?
+        self.growth = 0                         # Assuming this equates to #-of-steps to increment population where it takes X steps to do so.
+        self.growth_remainder = X               # Placeholder in case of alternative growth control method. Holds #-of-steps until population increment.
+        self.economy = 0                        # Still not sure what this does functionally unless we make resources modify attributes.
+        self.resources = []                     # Stores resources gained through owned planets or trade.
         '''    
 
     def update_attributes(self, tech, culture, military, friendly):
