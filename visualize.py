@@ -1,9 +1,12 @@
-# The visualization module for the civ diplomacy project. Contains functions to display the simulation and plot data.
+##### DEPENDENCIES #####
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 from matplotlib.lines import Line2D # For custom legends
 
+
+
+##### FUNCTIONS #####
 def visualize_simulation(model):
     """
     Creates and displays an animated visualization of the simulation model.
@@ -42,8 +45,8 @@ def visualize_simulation(model):
     # Get the dimensions of the simulation grid.
     grid_height, grid_width = model.grid.shape
     # Set the limits of the x and y axes to match the grid dimensions.
-    ax.set_xlim(0, grid_width)
-    ax.set_ylim(0, grid_height)
+    ax.set_xlim(-1, grid_width + 1)
+    ax.set_ylim(-1, grid_height + 1)
     # Set the tick marks for the x and y axes to correspond to grid cells.
     ax.set_xticks(np.arange(0, grid_width, 1))
     ax.set_yticks(np.arange(0, grid_height, 1))
@@ -198,5 +201,4 @@ def visualize_simulation(model):
     ani.save('simulation_animation.gif', writer='pillow', fps=1)
     plt.show()
 
-def winPlot(data):
-  pass # TO-DO: Displays a graph (form TBD) portraying the prevalence in victory between cooperative and aggressive civs.
+# TO-DO: Write plot fns based on our established metrics.

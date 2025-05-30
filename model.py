@@ -1,8 +1,3 @@
-''' File containing the 'Model' class, used to run a simulation.
-Changelog:
-v0.0.0: Established simulation end condition. - DM
-v0.0.1: Created and filled 'Model' class. - NB
-'''
 ##### DEPDENDENCIES #####
 import numpy as np
 from random import sample
@@ -14,16 +9,17 @@ from planet import Planet
 
 
 ##### USER-ADJUSTABLE #####
-# MAX_CULTURE = 100 # Moved to civ.py
-MIN_PLANETS = 3         # Inclusive lower bound integer for accepted range of planet count.
-MAX_PLANETS = 25        # Inclusive higher bound integer for accepted range of planet count.
-MIN_GRID_HEIGHT = 10    # Inclusive lower bound integer determining minimum grid height (y dimension).
-MIN_GRID_WIDTH = 10     # Inclusive lower bound integer determining minimum grid width (x dimension).
-MAX_GRID_HEIGHT = 50    # Inclusive higher bound integer determining maximum grid height (y dimension).
-MAX_GRID_WIDTH = 50     # Inclusive higher bound integer determining maximum grid width (x dimension).
-WAR_WIN_BOOST = 2         # Value of tech and military boost for winning a war.
-COOPERATION_BOOST = 1      # Value of tech and culture boost for cooperating with another civ.
-WAR_PENALTY = 1            # Value of tech and culture penalty for an attacker losing a war.
+# SCENARIO RANGE CONSTRAINTS:
+MIN_PLANETS = 3                 # Inclusive lower bound integer for accepted range of planet count.
+MAX_PLANETS = 30                # Inclusive higher bound integer for accepted range of planet count.
+MIN_GRID_HEIGHT = 5             # Inclusive lower bound integer determining minimum grid height (y dimension).
+MIN_GRID_WIDTH = 5              # Inclusive lower bound integer determining minimum grid width (x dimension).
+MAX_GRID_HEIGHT = 50            # Inclusive higher bound integer determining maximum grid height (y dimension).
+MAX_GRID_WIDTH = 50             # Inclusive higher bound integer determining maximum grid width (x dimension).
+# INTERACTION MODIFIERS:
+WAR_WIN_BOOST = 2               # Value of tech and military boost for winning a war.
+COOPERATION_BOOST = 1           # Value of tech and culture boost for cooperating with another civ.
+WAR_PENALTY = 1                 # Value of tech and culture penalty for an attacker losing a war.
 
 
 ##### CLASSES #####
@@ -81,7 +77,7 @@ class Model():
         civ2.culture += COOPERATION_BOOST
 
     def civs_war(self, attacker, defender, t, targeted_planet): # actual_attacker, actual_defender, targeted_planet are passed directly
-        print(f"Civ {attacker.get_id()} is attacking Civ {defender.get_id()}, targeting planet {targeted_planet.get_id() if targeted_planet else 'N/A'}.")
+        print(f"\tCiv {attacker.get_id()} is attacking Civ {defender.get_id()}, targeting planet {targeted_planet.get_id() if targeted_planet else 'N/A'}.")
 
         # Tech gives a bonus to combat effectiveness
         attacker_power = attacker.get_military() * (1 + (0.1 * attacker.get_tech()))
@@ -90,32 +86,32 @@ class Model():
         total_combat_power = attacker_power + defender_power
 
         if total_combat_power == 0: # Stalemate if both have zero power
-            print(f"Stalemate between Civ {attacker.get_id()} and Civ {defender.get_id()} due to zero combat power.")
+            print(f"\tStalemate between Civ {attacker.get_id()} and Civ {defender.get_id()} due to zero combat power.")
             return # No changes in this case
 
         attacker_win_chance = attacker_power / total_combat_power
 
         if random.random() < attacker_win_chance:
             # Attacker wins
-            print(f"Attacker Civ {attacker.get_id()} wins against Civ {defender.get_id()}!")
+            print(f"\tAttacker Civ {attacker.get_id()} wins against Civ {defender.get_id()}!")
             attacker.military += WAR_WIN_BOOST # Attacker gets military boost
             attacker.tech += WAR_WIN_BOOST     # Attacker gets tech boost
 
             # Attacker conquers the specific targeted planet, if it's valid and still owned by the defender.
             if targeted_planet and targeted_planet.get_civ() == defender:
-                print(f"Civ {attacker.get_id()} conquers planet {targeted_planet.get_id()} from Civ {defender.get_id()}.")
+                print(f"\tCiv {attacker.get_id()} conquers planet {targeted_planet.get_id()} from Civ {defender.get_id()}.")
                 targeted_planet.assign_civ(attacker) # Planet changes owner
                 
                 # Check if defender is eliminated after losing the planet
                 if defender.check_if_dead(t):
-                    print(f"Civ {defender.get_id()} has been eliminated by Civ {attacker.get_id()}.")
+                    print(f"\tCiv {defender.get_id()} has been eliminated by Civ {attacker.get_id()}.")
             elif targeted_planet and targeted_planet.get_civ() != defender:
-                 print(f"Targeted planet {targeted_planet.get_id()} is no longer owned by defender Civ {defender.get_id()}. No conquest from this battle.")
+                 print(f"\tTargeted planet {targeted_planet.get_id()} is no longer owned by defender Civ {defender.get_id()}. No conquest from this battle.")
             elif not targeted_planet:
-                print(f"Defender Civ {defender.get_id()} had no specific planet targeted (e.g. no planets left to target). No conquest from this battle.")
+                print(f"\tDefender Civ {defender.get_id()} had no specific planet targeted (e.g. no planets left to target). No conquest from this battle.")
         else:
             # Defender wins (Attacker loses the battle)
-            print(f"Defender Civ {defender.get_id()} wins the battle against attacker Civ {attacker.get_id()}!")
+            print(f"\tDefender Civ {defender.get_id()} wins the battle against attacker Civ {attacker.get_id()}!")
             defender.military += WAR_WIN_BOOST # Defender gets military boost
             defender.tech += WAR_WIN_BOOST     # Defender gets tech boost
             defender.culture += WAR_WIN_BOOST  # Defender gets culture boost
@@ -123,7 +119,7 @@ class Model():
             # Attacker takes a hit to tech and culture for the failed attack
             attacker.tech = max(0, attacker.tech - WAR_PENALTY)
             attacker.culture = max(0, attacker.culture - WAR_PENALTY)
-            print(f"Attacker Civ {attacker.get_id()} loses {WAR_PENALTY} tech and culture due to failed attack.")
+            print(f"\tAttacker Civ {attacker.get_id()} loses {WAR_PENALTY} tech and culture due to failed attack.")
             # No planets change hands if the defender wins the battle.
 
     def interact_civs(self, t): # Added turn 't'
@@ -140,7 +136,7 @@ class Model():
 
                     if civ1.get_friendly() == 1 and civ2.get_friendly() == 1:
                         interaction_details['type'] = 'cooperation'
-                        print(f"Civilizations {civ1.get_id()} and {civ2.get_id()} are cooperating.")
+                        print(f"\tCivilizations {civ1.get_id()} and {civ2.get_id()} are cooperating.")
                         self.civs_cooperate(civ1, civ2)
                     elif civ1.get_friendly() == 0 or civ2.get_friendly() == 0:
                         interaction_details['type'] = 'war'
@@ -180,7 +176,7 @@ class Model():
                         else:
                             interaction_details['defender_target_planet_initial_pos'] = None 
 
-                        print(f"War: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{defender_target_planet_object.get_id() if defender_target_planet_object else 'None'}")
+                        print(f"\tWar: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{defender_target_planet_object.get_id() if defender_target_planet_object else 'None'}")
                         self.civs_war(actual_attacker, actual_defender, t, defender_target_planet_object)
                     
                     interactions.append(interaction_details)
@@ -190,8 +186,7 @@ class Model():
         t = 0
         while True:
             t += 1
-            print(f"Turn {t}")
-            
+            print(f"Turn {t}:")            
             for civ in self.list_civs:
                 if not civ.alive:
                     continue
@@ -209,14 +204,14 @@ class Model():
 
             alive_civs = [civ for civ in self.list_civs if civ.alive]
             if len(alive_civs) == 1:
-                message = f"Civilization {alive_civs[0].get_id()} has won the simulation through military!"
+                message = f"\tCivilization {alive_civs[0].get_id()} has won the simulation through military!"
                 print(message) # Console print for military victory
                 yield message
                 yield message
                 yield message
                 return
             if not alive_civs:
-                message = "All civilizations have been eliminated."
+                message = "\tAll civilizations have been eliminated."
                 print(message) # Console print for all civilizations eliminated
                 yield message
                 yield message
