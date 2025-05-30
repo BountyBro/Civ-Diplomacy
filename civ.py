@@ -19,13 +19,15 @@ def proclaim_culture_victory(civ_id):
 
 ##### CLASSES #####
 class Civ:
-    def __init__(self, civ_id, tech= 0, culture= 0, military= 0):
+    id_iter = 0
+    def __init__(self, tech= 0, culture= 0, military= 0):
         # Model Controllers:
-        self.civ_id = civ_id                    # The civilzation ID for unique identification and iteration.
+        self.civ_id = Civ.id_iter               # The civilzation ID for unique identification and iteration.
         self.num_planets = 0                    # Positive integer value. civ loses at self.num_planets == 0.
         self.alive = True                       # Set to False when len(self.planets) == 0.
         self.has_won_culture_victory = False    # Added flag for clean stop.
         self.planets = {}                       # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
+        Civ.id_iter += 1
         # Attributes:
         self.friendly = choice([0,1])           # Corrected: Was random.choice(0,1)
         self.culture = max(0, culture)          # The attribute that determines how close a civ is to a culture victory.

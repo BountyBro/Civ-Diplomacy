@@ -22,13 +22,14 @@ COOPERATION_BOOST = 1           # Value of tech and culture boost for cooperatin
 WAR_PENALTY = 1                 # Value of tech and culture penalty for an attacker losing a war.
 
 
+
 ##### CLASSES #####
 class Model():
     def __init__(self, num_planets, grid_height, grid_width):
         self.num_planets = max(MIN_PLANETS, min(num_planets, MAX_PLANETS))  # Applying range constraint to input 'num_planets'
         self.grid = np.zeros(shape= (max(MIN_GRID_HEIGHT, min(grid_height, MAX_GRID_HEIGHT)), max(MIN_GRID_WIDTH, min(grid_width, MAX_GRID_WIDTH))))
         self.list_planets = []
-        self.list_civs = [Civ(i, 0, 0, 0) for i in range(num_planets)]
+        self.list_civs = [Civ() for i in range(num_planets)]
         self.assign_planets()
         self.ranges = self.distances()
 
@@ -37,7 +38,7 @@ class Model():
         coords = np.array([[(row, col) for col in range(self.grid.shape[1])] for row in range(self.grid.shape[0])])
         for i in range(self.num_planets):
             random_available_coord = sample(coords[isAvailable].tolist(), 1)[0]
-            self.list_planets.append(Planet(i, random_available_coord[0], random_available_coord[1]))
+            self.list_planets.append(Planet(random_available_coord[0], random_available_coord[1]))
             isAvailable[random_available_coord[0], random_available_coord[1]] = False
             self.list_planets[i].assign_civ(self.list_civs[i])
     

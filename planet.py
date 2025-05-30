@@ -5,13 +5,15 @@ import civ
 
 ##### CLASSES #####
 class Planet:
+    id_iter = 0
     def __init__(self, id, pos_x, pos_y):
-        self.id = id        # Planet ID for planet list index and unique identification
-        self.civ = None     # The civilization that owns this planet.
-        self.pos_x = pos_x  # The x-coordinate of the planet.
-        self.pos_y = pos_y  # The y-coordinate of the planet.
-        # NEW ATTRIBUTE:
-        # self.resources = [] # Assigns a random number of resources from A to B. [I figure 0~3 w/ weight on 0~1? - Noah]
+        # Model Controllers:
+        self.id = Planet.id_iter    # Planet ID for planet list index and unique identification
+        self.civ = None             # The civilization that owns this planet.
+        self.pos_x = pos_x          # The x-coordinate of the planet.
+        self.pos_y = pos_y          # The y-coordinate of the planet.
+        Planet.id_iter += 1         # Iterates planet tracker index.
+        # Attributes:
 
     def assign_civ(self, new_owner_civ):
         if self.civ:        # If there's an existing owner, remove it first.
