@@ -2,8 +2,7 @@
 import numpy as np
 from random import sample
 import random
-import visualize as vis
-from civ import Civ, proclaim_culture_victory
+from civ import Civ
 from planet import Planet
 
 
@@ -135,21 +134,21 @@ class Model():
                 if self.can_interact(civ1, civ2) and self.can_interact(civ2, civ1):
                     interaction_details = {'civ1': civ1, 'civ2': civ2} # Base details
 
-                    if civ1.get_friendly() == 1 and civ2.get_friendly() == 1:
+                    if civ1.get_friendliness() == 1 and civ2.get_friendliness() == 1:
                         interaction_details['type'] = 'cooperation'
                         print(f"\tCivilizations {civ1.get_id()} and {civ2.get_id()} are cooperating.")
                         self.civs_cooperate(civ1, civ2)
-                    elif civ1.get_friendly() == 0 or civ2.get_friendly() == 0:
+                    elif civ1.get_friendliness() == 0 or civ2.get_friendliness() == 0:
                         interaction_details['type'] = 'war'
                         # Determine the actual attacker and defender for this war interaction
                         actual_attacker, actual_defender = None, None
-                        if civ1.get_friendly() == 0 and civ2.get_friendly() == 1: # civ1 aggressive, civ2 friendly
+                        if civ1.get_friendliness() == 0 and civ2.get_friendliness() == 1: # civ1 aggressive, civ2 friendly
                             actual_attacker = civ1
                             actual_defender = civ2
-                        elif civ2.get_friendly() == 0 and civ1.get_friendly() == 1: # civ2 aggressive, civ1 friendly
+                        elif civ2.get_friendliness() == 0 and civ1.get_friendliness() == 1: # civ2 aggressive, civ1 friendly
                             actual_attacker = civ2
                             actual_defender = civ1
-                        elif civ1.get_friendly() == 0 and civ2.get_friendly() == 0: # both aggressive
+                        elif civ1.get_friendliness() == 0 and civ2.get_friendliness() == 0: # both aggressive
                             # If both are aggressive, decide who attacks. For now, simple random choice or based on ID.
                             # Let's make the one with lower ID the attacker for predictability in this case.
                             if civ1.get_id() < civ2.get_id():
@@ -191,7 +190,7 @@ class Model():
             for civ in self.list_civs:
                 if not civ.alive:
                     continue
-                civ.update_attributes(civ.tech, civ.culture, civ.military, civ.friendly)
+                civ.update_attributes()
                 if civ.has_won_culture_victory:
                     message = f"Civilization {civ.get_id()} has achieved a culture victory!"
                     # Yield message multiple times for display duration

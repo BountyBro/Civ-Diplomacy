@@ -1,6 +1,10 @@
+''' TO-DO:
+- Replace update_attributes()'s culture_step & tech_step parameters w/ their respective formulas (see how tech is assigned).
+'''
 ##### DEPENDENCIES #####
 import planet
-from random import choice, randint
+from random import random
+from numpy import log
 # from model import MAX_CULTURE, proclaim_culture_victory # Removed for circular import fix
 
 
@@ -29,25 +33,34 @@ class Civ:
         self.planets = {}                       # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
         Civ.id_iter += 1
         # Attributes:
-        self.friendly = choice([0,1])           # Corrected: Was random.choice(0,1)
+        self.friendliness = random()            # The friendliness of a civ. 
         self.culture = max(0, culture)          # The attribute that determines how close a civ is to a culture victory.
         self.military = max(0, military)        # The attribute that determines a civ's odds of success in war.
         self.tech = max(0, tech)                # The attribute that determines how far a civ can travel.
-        self.tech_growth = randint(1, 3)        # Controls the rate of the civ's technological growth.
-        self.mil_growth = randint(1, 3)         # Controls the rate of the civ's miilitary growth. Corrected: Was self.military_growth in some contexts
-        self.culture_growth = randint(1, 3)     # Controls the rate of the civ's cultural growth.    
-        ''' NEW ATTRIBUTES - Daniil's suggestions:
-        self.population = 0                     # Guessing init_pop = 1, but do they need more to take over new planets?
-        self.growth = 0                         # Assuming this equates to #-of-steps to increment population where it takes X steps to do so.
-        self.growth_remainder = X               # Placeholder in case of alternative growth control method. Holds #-of-steps until population increment.
-        self.economy = 0                        # Still not sure what this does functionally unless we make resources modify attributes.
-        self.resources = []                     # Stores resources gained through owned planets or trade.
-        '''    
-
-    def update_attributes(self, tech, culture, military, friendly):
-        self.tech += self.tech_growth
-        self.culture += self.culture_growth
-        self.military += self.mil_growth # Corrected attribute name
+        self.resources = [0] * 3                # Resources: [0]: Energy; [1]: Food: [2]; Minerals.
+        self.demand = [0] * 3                   # Need for resources (refer to prior line).
+        self.surplus = [0] * 3                  # Excess of resources.
+        self.deficit = [0] * 3                  # Deficit of resources.
+        self.population = 1.0                   # Total population of this civ. Units in 1,000 people.    
+        self.population_cap = 0.0               # Maximum limit of population as determined by sum(self.planets.population_cap). Units in 1,000 people.
+        self.max_growth_rate = 0                # Ceiling of population growth.
+        
+        
+    def update_attributes(self, culture_step= 0, friendliness_step= 0, military_step = 0, resources_step= [0] * 3):
+        # Population
+        self.population += self.population * self.max_growth_rate * min(1.0, float(self.food) / self.population)
+        # Attributes
+        self.culture += culture_step
+        self.friendliness += friendliness_step
+        self.military += military_step
+        self.tech += 0.5 * log(self.population) + 0.3 * self.resources[0] / self.population
+        # Resources
+        self.resources += resources_step
+        self.demand = [(self.population + self.tech + self.military) / 10, self.population, self.military * 0.3]
+        flux = [self.resources[i] - self.demand[i] for i in range(len(self.resources))]
+        self.surplus = [max(0, flux) for i in range(len(flux))]
+        self.deficit = [max(-flux, 0) for i in range(len(flux))]
+        # Check Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
             self.has_won_culture_victory = True # Set flag
             proclaim_culture_victory(self.civ_id) # Call local version
@@ -63,10 +76,14 @@ class Civ:
         for planet in self.planets.values():
             planet.remove_civ()
         self.planets.clear()
-        self.num_planets = 0
-        print(f"\tCivilization {self.civ_id} has been eliminated at turn {t}")
+        self.num_planets = 0.0
+        self.population = 0.0
+        print(f"\tCivilization {self.civ_id} has been eliminated at turn {t}.")
 
     # Getters
+
+    def get_id(self):
+        return self.civ_id
 
     def get_alive(self):
         return self.alive
@@ -86,11 +103,14 @@ class Civ:
     def get_num_planets(self):
         return self.num_planets
 
-    def get_id(self):
-        return self.civ_id
+    def get_population(self):
+        return self.population
+    
+    def get_population_cap(self):
+        return self.population_cap
 
-    def get_friendly(self):
-        return self.friendly
+    def get_resources(self):
+        return self.resources   # Returns a list.
 
     def get_culture(self):
         return self.culture
@@ -101,19 +121,5 @@ class Civ:
     def get_tech(self):
         return self.tech
     
-''' NEW GETTERS:
-    def get_population(self):
-        return self.population
-
-    def get_growth(self):
-        return self.growth
-
-    def get_growth_remainder(self):
-        return self.growth_remainder
-
-    def get_economy(self):
-        return self.economy
-
-    def get_resources(self):
-        return self.resources   # Returns a list.
-''' 
+    def get_friendliness(self):
+        return self.friendliness
