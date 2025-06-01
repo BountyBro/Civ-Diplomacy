@@ -3,6 +3,7 @@ Define initial planet attribute values.
 '''
 ##### DEPENDENCIES #####
 import civ
+import numpy as np
 from random import randint
 
 
@@ -14,7 +15,7 @@ POPCAP_MIN, POPCAP_MAX = 1000, 5000
 ##### CLASSES #####
 class Planet:
     id_iter = 0
-    def __init__(self, id, pos_x, pos_y):
+    def __init__(self, pos_x, pos_y):
         # Model Controllers:
         self.id = Planet.id_iter                                        # Planet ID for planet list index and unique identification
         self.civ = None                                                 # The civilization that owns this planet.
@@ -22,7 +23,7 @@ class Planet:
         self.pos_y = pos_y                                              # The y-coordinate of the planet.
         Planet.id_iter += 1                                             # Iterates planet tracker index.
         # Resources: [0]: Energy; [1]: Food: [2]; Minerals.
-        self.resources = [randint(RESOURCE_MIN, RESOURCE_MAX) for i in range(3)]
+        self.resources = np.array([randint(RESOURCE_MIN, RESOURCE_MAX) for i in range(3)])
         self.population_cap = float(randint(POPCAP_MIN, POPCAP_MAX))    # Units in 1,000 people.
 
     def assign_civ(self, new_owner_civ):

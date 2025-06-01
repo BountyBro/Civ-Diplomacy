@@ -3,8 +3,8 @@
 '''
 ##### DEPENDENCIES #####
 import planet
+import numpy as np
 from random import random
-from numpy import log
 # from model import MAX_CULTURE, proclaim_culture_victory # Removed for circular import fix
 
 
@@ -37,10 +37,10 @@ class Civ:
         self.culture = max(0, culture)          # The attribute that determines how close a civ is to a culture victory.
         self.military = max(0, military)        # The attribute that determines a civ's odds of success in war.
         self.tech = max(0, tech)                # The attribute that determines how far a civ can travel.
-        self.resources = [0] * 3                # Resources: [0]: Energy; [1]: Food: [2]; Minerals.
-        self.demand = [0] * 3                   # Need for resources (refer to prior line).
-        self.surplus = [0] * 3                  # Excess of resources.
-        self.deficit = [0] * 3                  # Deficit of resources.
+        self.resources = np.zeros(3)            # Resources: [0]: Energy; [1]: Food: [2]; Minerals.
+        self.demand = np.zeros(3)               # Need for resources (refer to prior line).
+        self.surplus = np.zeros(3)              # Excess of resources.
+        self.deficit = np.zeros(3)              # Deficit of resources.
         self.population = 1.0                   # Total population of this civ. Units in 1,000 people.    
         self.population_cap = 0.0               # Maximum limit of population as determined by sum(self.planets.population_cap). Units in 1,000 people.
         self.max_growth_rate = 0                # Ceiling of population growth.
@@ -48,18 +48,18 @@ class Civ:
         
     def update_attributes(self, culture_step= 0, friendliness_step= 0, military_step = 0, resources_step= [0] * 3):
         # Population
-        self.population += self.population * self.max_growth_rate * min(1.0, float(self.food) / self.population)
+        self.population += self.population * self.max_growth_rate * min(1.0, float(self.resources[1]) / self.population)
         # Attributes
         self.culture += culture_step
         self.friendliness += friendliness_step
         self.military += military_step
-        self.tech += 0.5 * log(self.population) + 0.3 * self.resources[0] / self.population
+        self.tech += 0.5 * np.log(self.population) + 0.3 * self.resources[0] / self.population
         # Resources
         self.resources += resources_step
-        self.demand = [(self.population + self.tech + self.military) / 10, self.population, self.military * 0.3]
-        flux = [self.resources[i] - self.demand[i] for i in range(len(self.resources))]
-        self.surplus = [max(0, flux) for i in range(len(flux))]
-        self.deficit = [max(-flux, 0) for i in range(len(flux))]
+        self.demand = np.array([(self.population + self.tech + self.military) / 10, self.population, self.military * 0.3])
+        flux = self.resources - self.demand
+        self.surplus = np.where(0 < flux, flux, 0)
+        self.deficit = np.where(flux < 0, 0, flux)
         # Check Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
             self.has_won_culture_victory = True # Set flag
