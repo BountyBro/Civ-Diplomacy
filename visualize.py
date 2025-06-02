@@ -174,23 +174,22 @@ def visualize_simulation(model):
                 # Determine border color based on resources (logic from before)
                 current_border_color = civ_colors.get(owner_civ.get_id(), 'gray') if owner_civ else 'gray' # Default to fill
                 resources = p.get_resources() 
-                resource_colors = {'Energy': 'yellow', 'Food': 'green', 'Minerals': 'silver'}
-                resource_indices = {'Energy': 0, 'Food': 1, 'Minerals': 2}
-                if resources and sum(resources) > 0:
+                resource_colors = {"energy": 'yellow', "food": 'green', "minerals": 'silver'}
+                if resources and sum(resources.values()) > 0:
                     dominant_resource_name = None
-                    if resources[resource_indices['Energy']] > resources[resource_indices['Food']] and resources[resource_indices['Energy']] > resources[resource_indices['Minerals']]:
-                        dominant_resource_name = 'Energy'
-                    elif resources[resource_indices['Food']] > resources[resource_indices['Energy']] and resources[resource_indices['Food']] > resources[resource_indices['Minerals']]:
-                        dominant_resource_name = 'Food'
-                    elif resources[resource_indices['Minerals']] > resources[resource_indices['Energy']] and resources[resource_indices['Minerals']] > resources[resource_indices['Food']]:
-                        dominant_resource_name = 'Minerals'
+                    if resources["energy"] > resources["food"] and resources["energy"] > resources["minerals"]:
+                        dominant_resource_name = "energy"
+                    elif resources["food"] > resources["energy"] and resources["food"] > resources["minerals"]:
+                        dominant_resource_name = "food"
+                    elif resources["minerals"] > resources["energy"] and resources["minerals"] > resources["food"]:
+                        dominant_resource_name = "minerals"
                     else: 
-                        if resources[resource_indices['Energy']] >= resources[resource_indices['Food']] and resources[resource_indices['Energy']] >= resources[resource_indices['Minerals']] and resources[resource_indices['Energy']] > 0:
-                            dominant_resource_name = 'Energy'
-                        elif resources[resource_indices['Food']] >= resources[resource_indices['Energy']] and resources[resource_indices['Food']] >= resources[resource_indices['Minerals']] and resources[resource_indices['Food']] > 0:
-                            dominant_resource_name = 'Food'
-                        elif resources[resource_indices['Minerals']] >= resources[resource_indices['Energy']] and resources[resource_indices['Minerals']] >= resources[resource_indices['Food']] and resources[resource_indices['Minerals']] > 0:
-                            dominant_resource_name = 'Minerals'
+                        if resources["energy"] >= resources["food"] and resources["energy"] >= resources["minerals"] and resources["energy"] > 0:
+                            dominant_resource_name = "energy"
+                        elif resources["food"] >= resources["energy"] and resources["food"] >= resources["minerals"] and resources["food"] > 0:
+                            dominant_resource_name = "food"
+                        elif resources["minerals"] >= resources["energy"] and resources["minerals"] >= resources["food"] and resources["minerals"] > 0:
+                            dominant_resource_name = "minerals"
                     if dominant_resource_name:
                         current_border_color = resource_colors[dominant_resource_name]
                 planet_border_colors_final.append(current_border_color)

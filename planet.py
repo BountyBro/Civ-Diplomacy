@@ -1,16 +1,16 @@
-'''TO-DO:
-Define initial planet attribute values.
-'''
 ##### DEPENDENCIES #####
 import civ
 import numpy as np
 from random import randint
+from collections import Counter
 
 
 
 ##### CONSTANTS #####
-RESOURCE_MIN, RESOURCE_MAX = 100, 500
-POPCAP_MIN, POPCAP_MAX = 1000, 5000
+RESOURCE_MIN, RESOURCE_MAX =    100, 500
+POPCAP_MIN, POPCAP_MAX =        1000, 5000
+
+
 
 ##### CLASSES #####
 class Planet:
@@ -22,8 +22,7 @@ class Planet:
         self.pos_x = pos_x                                              # The x-coordinate of the planet.
         self.pos_y = pos_y                                              # The y-coordinate of the planet.
         Planet.id_iter += 1                                             # Iterates planet tracker index.
-        # Resources: [0]: Energy; [1]: Food: [2]; Minerals.
-        self.resources = np.array([randint(RESOURCE_MIN, RESOURCE_MAX) for i in range(3)])
+        self.resources = {"energy": randint(RESOURCE_MIN, RESOURCE_MAX), "food": randint(RESOURCE_MIN, RESOURCE_MAX), "minerals": randint(RESOURCE_MIN, RESOURCE_MAX)}
         self.population_cap = float(randint(POPCAP_MIN, POPCAP_MAX))    # Units in 1,000 people.
 
     def assign_civ(self, new_owner_civ):
@@ -32,7 +31,7 @@ class Planet:
         self.civ = new_owner_civ
         if new_owner_civ:   # Ensure new_owner_civ is not None.
             new_owner_civ.planets[self.id] = self
-            new_owner_civ.resources += self.resources
+            new_owner_civ.resources = dict(Counter(new_owner_civ.resources) + Counter(self.resources))
             new_owner_civ.population_cap += self.population_cap
             new_owner_civ.num_planets += 1
 
@@ -42,7 +41,7 @@ class Planet:
             self.civ.num_planets -= 1
             self.civ.population_cap -= self.population_cap
             self.civ.population -= min(self.population_cap, self.civ.population / self.civ.num_planets)
-            self.civ.resources -= self.resources
+            self.civ.resources = dict(Counter(self.civ.resources) - Counter(self.resources))
             self.civ = None
 
     def get_civ(self):
@@ -55,7 +54,7 @@ class Planet:
         return self.id
     
     def get_resources(self):
-        return self.resources   # Returns a list of [energy, food, resources].
+        return self.resources   # Returns a dictionary w/ keys "energy", "food", and "minerals".
 
     def get_population_cap(self):
         return self.population_cap

@@ -25,6 +25,15 @@ WAR_PENALTY = 1                 # Value of tech and culture penalty for an attac
 ##### CLASSES #####
 class Model():
     def __init__(self, num_planets, grid_height, grid_width):
+        ''' Model class constructor that creates a numpy array for a grid, with lists for civ agents and planet agents assigned to the civ agents.
+        Inputs:
+        - num_planets:  The # of planets to be used. Each planet is assigned to 1 civ, such that every civ has 1 planet, and vice versa.
+        - grid_height: How tall to make the grid. Recommended to maintain equality with grid_width to stabilize simulation consistency.
+        - grid_width: How wide to make the grid. Recommended to maintain equality with grid_height to stabilize simulation consistency.
+        Output:
+            - A Model object with attributes for the number of agents, a numpy array grid, and an array of distances between planet agents.
+        '''
+        # Initializing model constants and model resources.
         self.num_planets = max(MIN_PLANETS, min(num_planets, MAX_PLANETS))  # Applying range constraint to input 'num_planets'
         self.grid = np.zeros(shape= (max(MIN_GRID_HEIGHT, min(grid_height, MAX_GRID_HEIGHT)), max(MIN_GRID_WIDTH, min(grid_width, MAX_GRID_WIDTH))))
         self.list_planets = []
@@ -33,6 +42,12 @@ class Model():
         self.ranges = self.distances()
 
     def assign_planets(self):
+        ''' Model __init__() helper function. Assigns civs to unoccupied planets such that every planet is assigned 1 civ.
+        Input:
+            - Model Object: Holds the grid that planet coords are assigned to, the number of planets to make, a list of civs, and the list to append them to.
+        Output:
+            - Updates the source object's list_planets with randomly-assigned coordinates, and assigns civs from the provided list to each planet.
+        '''
         isAvailable = np.full(shape= self.grid.shape, fill_value = True)
         coords = np.array([[(row, col) for col in range(self.grid.shape[1])] for row in range(self.grid.shape[0])])
         for i in range(self.num_planets):
@@ -40,6 +55,7 @@ class Model():
             self.list_planets.append(Planet(random_available_coord[0], random_available_coord[1]))
             isAvailable[random_available_coord[0], random_available_coord[1]] = False
             self.list_planets[i].assign_civ(self.list_civs[i])
+        return
     
     def distances(self):
         ''' Returns a 2D array of dimensions 'num_planets'-by-'num_planets' that holds the distances between planets.
@@ -62,19 +78,20 @@ class Model():
         ]
     
     def can_interact(self, civ1, civ2):
-        for planet1 in civ1.get_planets().values():
-            for planet2 in civ2.get_planets().values():
-                dist = ((planet1.get_pos()[0] - planet2.get_pos()[0]) ** 2 + 
-                    (planet1.get_pos()[1] - planet2.get_pos()[1]) ** 2) ** 0.5
-                if civ1.get_tech() >= dist:
-                    return True
-        return False # Ensure False is returned if no interaction is possible
+        ''' Returns a boolean checking if any of civ2's planets are within civ1's range.
+        Inputs:
+            - civ1: The civ seeking interaction.
+            - civ2: The civ that is the target of interaction.
+        Output:
+            - A boolean representing if any of civ2's planets are within civ1's range.
+        '''
+        return np.any([[self.ranges[p1.get_id()][p2.get_id()] < civ1.tech for p1 in civ1.get_planets().values()] for p2 in civ2.get_planets().values()])
     
     def civs_cooperate(self, civ1, civ2):
-        civ1.tech += COOPERATION_BOOST
-        civ2.tech += COOPERATION_BOOST
-        civ1.culture += COOPERATION_BOOST
-        civ2.culture += COOPERATION_BOOST
+        civ1.tech +=            COOPERATION_BOOST
+        civ2.tech +=            COOPERATION_BOOST
+        civ1.culture +=         COOPERATION_BOOST
+        civ2.culture +=         COOPERATION_BOOST
 
     def civs_war(self, attacker, defender, t, targeted_planet): # actual_attacker, actual_defender, targeted_planet are passed directly
         print(f"\tCiv {attacker.get_id()} is attacking Civ {defender.get_id()}, targeting planet {targeted_planet.get_id() if targeted_planet else 'N/A'}.")
@@ -123,7 +140,8 @@ class Model():
             # No planets change hands if the defender wins the battle.
 
     def interact_civs(self, t): # Added turn 't'
-        interactions = [] 
+        interactions = []
+        conquest_events = []
         for i, civ1 in enumerate(self.list_civs):
             if not civ1.alive:
                 continue
@@ -178,9 +196,11 @@ class Model():
 
                         print(f"\tWar: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{defender_target_planet_object.get_id() if defender_target_planet_object else 'None'}")
                         self.civs_war(actual_attacker, actual_defender, t, defender_target_planet_object)
-                    
+                        if(defender_target_planet_object in actual_attacker.get_planets().values()):
+                            conquest_events.append({"planet_id": defender_target_planet_object.get_id(), "new_owner_civ_id": actual_attacker.get_id(), "old_owner_civ_id": actual_defender.get_id()})
+
                     interactions.append(interaction_details)
-        return interactions
+        return interactions, conquest_events
 
     def run_simulation(self):
         t = 0
@@ -199,8 +219,8 @@ class Model():
                     yield message
                     return # Stop simulation
 
-            interactions = self.interact_civs(t) # Pass turn 't'
-            yield t, interactions
+            interactions, conquest_events = self.interact_civs(t) # Pass turn 't'
+            yield t, interactions, conquest_events
 
             alive_civs = [civ for civ in self.list_civs if civ.alive]
             if len(alive_civs) == 1:
@@ -217,3 +237,4 @@ class Model():
                 yield message
                 yield message
                 return
+            del interactions, conquest_events

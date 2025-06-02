@@ -11,7 +11,10 @@ if __name__ == "__main__":
     # Start the visualization
     vis.visualize_simulation(simulation_model)
 
+
+
 ''' KNOWN BUGS:
 - Simulation animation displays on last frame. This is bypassed by saving as a gif. Could also set funcAnimation.repeat to True, but storing is good documentation.
 - Simulation print ends w/ 3 "Turn 1:\n" prints. Only prints after simulation is displayed, whereas the rest of the print is resolved prior.
+- visualize.py -> Line 156 "Exception has occurred: ValueError \n not enough values to unpack (expected 3, got 2)"
 '''

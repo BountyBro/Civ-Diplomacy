@@ -1,21 +1,29 @@
-''' TO-DO:
-- Replace update_attributes()'s culture_step & tech_step parameters w/ their respective formulas (see how tech is assigned).
-'''
 ##### DEPENDENCIES #####
 import planet
 import numpy as np
 from random import random
-# from model import MAX_CULTURE, proclaim_culture_victory # Removed for circular import fix
+from collections import Counter
 
 
 
 ##### CONSTANTS #####
 MAX_CULTURE = 100   # Amount of culture required for a culture victory.
-beta_P = 0.5   # Tech growth from population
-beta_E = 0.3   # Tech growth from energy
-delta_P = 0.0005  # Culture growth per population
-delta_T = 0.001   # Culture growth per tech
-delta_R = 0.0005  # Culture growth per resource unit
+# Attribute Update Flow Variables
+beta_P =    0.5       # Tech growth rate from population.
+beta_E =    0.3       # Tech growth rate from energy.
+delta_P =   0.0005    # Culture growth rate per population.
+delta_T =   0.001     # Culture growth rate per tech.
+delta_R =   0.0005    # Culture growth rate per resource unit.
+sigma_P =   0.1       # Military growth rate from population.
+sigma_T =   0.2       # Military growth rate from technology.
+sigma_M =   0.3       # Military growth rate from minerals.
+theta =     0.15      # Friendliness decay from combat victories.
+beta_f =    0.1       # Friendliness growth from cultural smoothing.
+e_c =       1.0       # Energy consumption per capita
+f_c =       1.0       # Food consumption per capita (adjust if necessary)
+m_c =       0.3       # Mineral consumption per capita.
+alpha_T =   0.1       # Tech influence on energy demand.
+alpha_M =   0.1       # Mineral influence on energy demand.
 
 
 
@@ -36,13 +44,13 @@ class Civ:
         self.alive = True                       # Set to False when len(self.planets) == 0.
         self.has_won_culture_victory = False    # Added flag for clean stop.
         self.planets = {}                       # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
-        Civ.id_iter += 1
+        Civ.id_iter += 1                        # Incrementing class ID counter.
         # Attributes:
         self.friendliness = random()            # The friendliness of a civ. 
         self.culture = max(0, culture)          # The attribute that determines how close a civ is to a culture victory.
         self.military = max(0, military)        # The attribute that determines a civ's odds of success in war.
         self.tech = max(0, tech)                # The attribute that determines how far a civ can travel.
-        self.resources = np.zeros(3)            # Resources: [0]: Energy; [1]: Food: [2]; Minerals.
+        self.resources = {"energy": 0, "food": 0, "minerals": 0}
         self.demand = np.zeros(3)               # Need for resources (refer to prior line).
         self.surplus = np.zeros(3)              # Excess of resources.
         self.deficit = np.zeros(3)              # Deficit of resources.
@@ -50,60 +58,26 @@ class Civ:
         self.population_cap = 0.0               # Maximum limit of population as determined by sum(self.planets.population_cap). Units in 1,000 people.
         self.max_growth_rate = 0                # Ceiling of population growth.
         
-        
-    def update_attributes(self, culture_step= 0, friendliness_step= 0, military_step = 0, resources_step= [0] * 3):\
-    
-        food_per_capita = self.resources[1] / max(self.population, 1e-3)
+    def update_attributes(self, resources_step= {"energy": 0, "food": 0, "minerals": 0}):
+        # Preparing flow variables.
+        food_per_capita = self.resources["food"] / max(self.population, 1e-3)
         growth_rate = self.max_growth_rate * min(1.0, food_per_capita)
+        # Updating attributes
         self.population += self.population * growth_rate
-        
-        # Resources update
-        for i in range(len(self.resources)):
-            self.resources[i] += resources_step[i]
-
-        # Tech Update
-        energy = max(self.resources[0], 1e-3)  # prevent division by zero
-        self.tech += beta_P * np.log(self.population) + beta_E * (energy / self.population)
-
-        # Culture Update
-        total_resources = sum(self.resources)
-        self.culture += delta_P * self.population + delta_T * self.tech + delta_R * total_resources
-
-        # Military Update
-        sigma_P = 0.1
-        sigma_T = 0.2
-        sigma_M = 0.3
-        minerals = self.resources[2]
-        self.military = sigma_P * self.population + sigma_T * self.tech + sigma_M * minerals
-
-        # Friendliness Updatetheta = 0.15
-        beta_f = 0.1
-        victories = getattr(self, 'victories', 0)  # default 0 if not set
-        friendliness_after_victories = max(0.0, self.friendliness - theta * victories)
+        self.resources = dict(Counter(self.resources) + Counter(resources_step))
+        self.culture += delta_P * self.population + delta_T * self.tech + delta_R * sum(self.resources.values())
+        self.military = sigma_P * self.population + sigma_T * self.tech + sigma_M * self.resources["minerals"]
+        self.tech += beta_P * np.log(self.population) + beta_E * (max(self.resources["energy"], 1e-3) / self.population) # max() to avoid ZeroDivisionError.
+        # Friendliness Update
+        friendliness_after_victories = max(0.0, self.friendliness - theta * getattr(self, 'victories', 0)) # Defaults victories to 0 if not set.
         cultural_pacification = beta_f * (self.culture / MAX_CULTURE)
-        self.friendliness = min(1.0, friendliness_after_victories + cultural_pacification)  # cap friendliness at 1
-
+        self.friendliness = min(1.0, friendliness_after_victories + cultural_pacification)  # Caps friendliness at 1.0.
         # Demand, Surplus and Deficit Update
-
-
-        f_c = 1.0  # Food consumption per capita (adjust if necessary)
-        e_c = 1.0  # Energy consumption per capita
-        alpha_T = 0.1
-        alpha_M = 0.1
-        m_c = 0.3
-
-        demand_energy = e_c * self.population + alpha_T * self.tech + alpha_M * self.military
-        demand_food = f_c * self.population
-        demand_minerals = m_c * self.military
-
-        self.demand = np.array([demand_energy, demand_food, demand_minerals])
-
-        # Calculate surplus and deficit
-        flux = self.resources - self.demand
-        self.surplus = np.where(flux > 0, flux, 0)
-        self.deficit = np.where(flux < 0, -flux, 0)  # deficits are positive quantities
-
-        # Check culture victory condition
+        self.demand = {"energy": e_c * self.population + alpha_T * self.tech + alpha_M * self.military, "food": f_c * self.population, "minerals": m_c * self.military}
+        flux = Counter(self.resources) - Counter(self.demand)
+        self.surplus = dict((k, v if 0 < v else 0) for k, v in flux.items())
+        self.deficit = dict((k, -v if v < 0 else 0) for k, v in flux.items())
+        # Checking Culture Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
             self.has_won_culture_victory = True
             proclaim_culture_victory(self.civ_id)
@@ -153,7 +127,7 @@ class Civ:
         return self.population_cap
 
     def get_resources(self):
-        return self.resources   # Returns a list.
+        return self.resources   # Returns a dictionary w/ keys "energy", "food", and "minerals".
 
     def get_culture(self):
         return self.culture
