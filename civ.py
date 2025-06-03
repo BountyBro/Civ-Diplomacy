@@ -1,3 +1,5 @@
+''' 'Civ' agent class file. Stores civ methods, constants, and simulation tools.
+'''
 ##### DEPENDENCIES #####
 import planet
 import numpy as np
@@ -26,14 +28,7 @@ m_c =       0.3       # Mineral consumption per capita.
 alpha_T =   0.1       # Tech influence on energy demand.
 alpha_M =   0.1       # Mineral influence on energy demand.
 epsilon_R = 0.5       # Resource pressure's influence on desperation.
-epsilon_P = 0.5       # Population pressure's influence on desparation.
-
-
-
-##### FUNCTIONS #####
-def proclaim_culture_victory(civ_id):
-    # we need to stop the simulation and declare a winner
-    print(f"\tCivilization {civ_id} has achieved a culture victory!")
+epsilon_P = 0.5       # Population pressure's influence on desparation. 
 
 
 
@@ -42,30 +37,32 @@ class Civ:
     id_iter = 0
     instances = [] # Added to track all civ instances
 
-    def __init__(self, tech= 0, culture= 0, military= 0):
+    def __init__(self, tech= 0, culture= 0, military= 0, friendliness= random(), resources= {"energy": 0, "food": 0, "minerals": 0}):
         # Model Controllers:
-        self.civ_id = Civ.id_iter               # The civilzation ID for unique identification and iteration.
-        self.num_planets = 0                    # Positive integer value. civ loses at self.num_planets == 0.
-        self.alive = True                       # Set to False when len(self.planets) == 0.
-        self.has_won_culture_victory = False    # Added flag for clean stop.
-        self.planets = {}                       # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
-        Civ.id_iter += 1                        # Incrementing class ID counter.
-        Civ.instances.append(self) # Added to track all civ instances
+        self.civ_id = Civ.id_iter                   # The civilzation ID for unique identification and iteration.
+        self.num_planets = 0                        # Positive integer value. civ loses at self.num_planets == 0.
+        self.alive = True                           # Set to False when len(self.planets) == 0.
+        self.has_won_culture_victory = False        # Added flag for clean stop.
+        self.planets = {}                           # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
+        Civ.id_iter += 1                            # Incrementing class ID counter.
+        Civ.instances.append(self)                  # Added to track all civ instances
         # Attributes:
-        self.friendliness = random()            # The friendliness of a civ. 
-        self.culture = max(0, culture)          # The attribute that determines how close a civ is to a culture victory.
-        self.military = max(0, military)        # The attribute that determines a civ's odds of success in war.
-        self.tech = max(0, tech)                # The attribute that determines how far a civ can travel.
-        self.resources = {"energy": 0, "food": 0, "minerals": 0}
-        self.demand = {}                        # Needs for resources (energy, food, minerals). Initialized as dict.
-        self.surplus = {}                       # Excess of resources. Initialized as dict.
-        self.deficit = {}                       # Deficit of resources. Initialized as dict.
-        self.population = 1.0                   # Total population of this civ. Units in 1,000 people.    
-        self.population_cap = 0.0               # Maximum limit of population as determined by sum(self.planets.population_cap). Units in 1,000 people.
-        self.max_growth_rate = 0                # Ceiling of population growth.
-        self.desperation = 0.0                  # Determinant to prioritize war or trade.   
-        self.is_desparate = False               # Checks desparation barrier.      
-        self.resource_pressure_component = 0.0  # Rp_i for WarScore: sum_k Deficit_ik / sum_k Demand_ik
+        self.friendliness = max(0, friendliness)    # The friendliness of a civ. 
+        self.culture = max(0, culture)              # The attribute that determines how close a civ is to a culture victory.
+        self.military = max(0, military)            # The attribute that determines a civ's odds of success in war.
+        self.tech = max(0, tech)                    # The attribute that determines how far a civ can travel.
+        self.resources = dict(Counter({"energy": 0, "food": 0, "minerals": 0}) + Counter(resources))
+                                                    # 3-pair dictionary containing keys "energy", "food", and "minerals", w/ integer values.
+        self.demand = {}                            # Needs for resources (energy, food, minerals). Initialized as dict.
+        self.surplus = {}                           # Excess of resources. Initialized as dict.
+        self.deficit = {}                           # Deficit of resources. Initialized as dict.
+        self.population = 1.0                       # Total population of this civ. Units in 1,000 people.    
+        self.population_cap = 0.0                   # Maximum limit of population as determined by sum(self.planets.population_cap). Units in 1,000 people.
+        self.max_growth_rate = 0                    # Ceiling of population growth.
+        self.desperation = 0.0                      # Determinant to prioritize war or trade.   
+        self.is_desparate = False                   # Checks desparation barrier.      
+        self.resource_pressure_component = 0.0      # Rp_i for WarScore: sum_k Deficit_ik / sum_k Demand_ik
+        self.traded_resources = []                  # list of 1-pair, civ:resources dictionaries used to undo trades when a civ dies.
         
         # Attributes for historical data plotting
         self.victories = 0
@@ -77,13 +74,18 @@ class Civ:
         # Resource stocks are available via self.resources
         # num_trade_partners and is_at_war will be determined by Model per turn.
 
-    def reset_turn_counters(self): # Added method
+    def reset_turn_counters(self):
+        ''' Static setter for 'Civ' agents' 'war_initiations_this_turn' attribute.
+        '''
         self.war_initiations_this_turn = 0
 
     def update_attributes(self, resources_step= {"energy": 0, "food": 0, "minerals": 0}):
-        # Reset per-turn counters
-        # self.war_initiations_this_turn = 0 # This is now handled by reset_turn_counters, called by Model
-
+        '''
+        Inputs:
+            - resource_step: Optional argument in case resources are modified outside trade or planetary assignment.
+        Outputs:
+            - None. Updates calling 'Civ' agent's attributes, and potentially prints in case of cultural victory during update.
+        '''
         # Preparing flow variables.
         food_per_capita = self.resources["food"] / max(self.population, 1e-3)
         self.max_growth_rate = 0.01 + 0.005 * np.tanh(self.tech / 100)
@@ -103,7 +105,6 @@ class Civ:
         flux = Counter(self.resources) - Counter(self.demand)
         self.surplus = dict((k, v if 0 < v else 0) for k, v in flux.items())
         self.deficit = dict((k, abs(v) if v < 0 else 0) for k, v in flux.items())
-
         # Calculate population pressure, avoiding division by zero
         current_pop_cap = self.get_population_cap()
         if current_pop_cap <= 0:
@@ -113,7 +114,6 @@ class Civ:
                 self.population_pressure = 0.0
         else:
             self.population_pressure = max(0.0, float(self.get_population() - current_pop_cap) / current_pop_cap)
-
         # Calculate individual resource pressures (deficit / demand, if demand > 0)
         resource_keys = ["energy", "food", "minerals"]
         for key in resource_keys:
@@ -124,7 +124,6 @@ class Civ:
                 setattr(self, pressure_attr_name, deficit_val / demand_val)
             else:
                 setattr(self, pressure_attr_name, 0.0 if deficit_val == 0 else 1.0) # Max pressure if demand is 0 but deficit exists
-
         # Calculate deficit pressure for overall desperation calculation
         sum_demand_val = np.sum(list(self.get_demand().values()))
         sum_deficit_val = np.sum(list(self.get_deficit().values()))
@@ -132,21 +131,32 @@ class Civ:
         if sum_demand_val > 0:
             deficit_pressure_for_desperation = sum_deficit_val / sum_demand_val
         self.resource_pressure_component = deficit_pressure_for_desperation # Store Rp_i
-        
         self.desperation = epsilon_R * self.population_pressure + epsilon_P * deficit_pressure_for_desperation
         self.is_desparate = DESPERATION_POINT < self.desperation
         # Checking Culture Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
             self.has_won_culture_victory = True
-            proclaim_culture_victory(self.civ_id)
+            print(f"\tCivilization {self.civ_id} has achieved a culture victory!")
 
     def check_if_dead(self, t):
+        '''
+        Inputs:
+            - t: Turn timestep used to establish chronological order for visualization purposes.
+        Outputs:
+            - None. Calls kill_civ on the calling 'Civ' agent if it has no planets.
+        '''
         if self.num_planets == 0:
             self.kill_civ(t)
             return True
         return False
 
     def kill_civ(self, t):
+        '''
+        Inputs:
+            - t: Turn timestep used to establish chronological order for visualization purposes.
+        Outputs:
+            - None. Prints civ elimination and declares the 'Civ' agent dead.
+        '''
         self.alive = False
         for planet in self.planets.values():
             planet.remove_civ()

@@ -1,3 +1,5 @@
+''' Primary visualization method file. Used to create animations of simulations, both stored as simulation_animation.gif, and as a matplotlib.plot.show() (if that works).
+'''
 ##### DEPENDENCIES #####
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -10,9 +12,12 @@ from planet import POPCAP_MAX # Added for scaling planet sizes
 
 ##### FUNCTIONS #####
 def visualize_simulation(model):
-    """
-    Creates and displays an animated visualization of the simulation model.
-    """
+    ''' Provides a visual representation of the input model in the form of a .gif file stored in the same directory.
+        Inputs:
+            - model: A 'Model' objcet to base the visualizaiton off of.
+        Outputs:
+            - simulation_animation.gif: written to the same dir. Visualizes the provided model turn-by-turn.
+    '''
     # 1. Setup Colors
     # Determine the number of civilizations to assign unique colors.
     num_civs = len(model.list_civs)
@@ -133,8 +138,13 @@ def visualize_simulation(model):
     plt.subplots_adjust(right=0.80, bottom=0.28) # Adjusted bottom for new legend
 
     # 3. Define the Animation Update Function
-    # This function is called for each frame of the animation.
     def update(frame_data):
+        ''' Custom arg function for matplotlib.animation.funcAnimation(). Updates animation for each frame.
+        Inputs:
+            - frame_data: The data to be displayed during the new frame. Provided by funcAnimation().
+        Outputs:
+            - None. Replaces old frame data to display new information.
+        '''
         # Clear previous frame's elements
         end_message_text.set_visible(False)
         planet_dots.set_visible(True) # Make sure planets are visible by default each frame
@@ -407,8 +417,13 @@ def visualize_simulation(model):
     # Get MAX_TURNS from the model instance for save_count
     simulation_max_turns = getattr(model, 'max_turns', 200) # Default to 200 if not found
 
-    # Define init_func for FuncAnimation
     def init():
+        ''' Custom arg function for funcAnimation().
+        Inputs:
+            - None.
+        Outputs:
+            - Returns a list of planet points, title, end message, lines, arrows, and indicator patches.
+        '''
         turn_title.set_text('')
         end_message_text.set_visible(False)
         planet_dots.set_offsets(np.empty((0, 2)))

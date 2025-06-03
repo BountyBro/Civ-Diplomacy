@@ -1,8 +1,13 @@
+''' Stores all plotting methods for analysis purposes. Utilized by model.py to draw plots of a simulation.
+'''
+##### DEPENDENCIES #####
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 import networkx as nx # Added for network graph plotting
+
+
 
 # Assuming historical_data is a list of dictionaries, where each dictionary represents a turn:
 # historical_data = [
@@ -408,7 +413,7 @@ def generate_h1_plots(historical_data, civ_data_key='civ_data', save_path_prefix
     2. Generating a scatter plot of Tech vs. Military, colored by war initiation.
     3. Generating correlated line charts for selected civs for Tech, Military, and War Initiations.
     """
-    if not historical_data:
+    if not historical_data or len(historical_data) == 1:
         print("H1 Plots: Historical data is empty. Cannot generate plots.")
         return
 

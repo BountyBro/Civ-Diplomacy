@@ -1,3 +1,5 @@
+''' 'Planet' agent class file. Stores planet methods, constants, and simulation tools.
+'''
 ##### DEPENDENCIES #####
 import civ
 import numpy as np
@@ -15,6 +17,7 @@ POPCAP_MIN, POPCAP_MAX =        1000, 5000
 ##### CLASSES #####
 class Planet:
     id_iter = 0
+
     def __init__(self, pos_x, pos_y):
         # Model Controllers:
         self.id = Planet.id_iter                                        # Planet ID for planet list index and unique identification
@@ -26,6 +29,12 @@ class Planet:
         self.population_cap = float(randint(POPCAP_MIN, POPCAP_MAX))    # Units in 1,000 people.
 
     def assign_civ(self, new_owner_civ):
+        ''' Adds calling 'Planet' agent to new_owner_civ.planets and increments new_owner_civ's attributes accordingly.
+        Inputs:
+            - new_owner_civ: The 'Civ' agent that is being assigned to the calling 'Planet' agent.
+        Outputs:
+            - None. Adds calling 'Planet' agent to new_owner_civ.planets and increments new_owner_civ's attributes accordingly.
+        '''
         if self.civ:        # If there's an existing owner, remove it first.
             self.remove_civ()
         self.civ = new_owner_civ
@@ -36,6 +45,12 @@ class Planet:
             new_owner_civ.num_planets += 1
 
     def remove_civ(self):
+        ''' Unassigns the currently-occupying civ and decrements the civ's resources accordingly.
+        Inputs:
+            - None.
+        Outputs:
+            - None.
+        '''
         if self.civ:
             # Calculate population to remove based on current number of planets
             population_to_remove = 0
@@ -57,6 +72,8 @@ class Planet:
             # which is called after a planet is conquered.
 
             self.civ = None
+
+    # Getters
 
     def get_civ(self):
         return self.civ
