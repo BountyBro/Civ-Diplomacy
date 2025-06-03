@@ -1,9 +1,10 @@
 ##### DEPDENDENCIES #####
 import numpy as np
-from random import sample
 import random
+from random import sample
 from civ import Civ
 from planet import Planet
+from collections import Counter
 
 
 
@@ -19,6 +20,7 @@ MAX_GRID_WIDTH = 50             # Inclusive higher bound integer determining max
 WAR_WIN_BOOST = 2               # Value of tech and military boost for winning a war.
 COOPERATION_BOOST = 1           # Value of tech and culture boost for cooperating with another civ.
 WAR_PENALTY = 1                 # Value of tech and culture penalty for an attacker losing a war.
+TRADE_TECH_BOOST = 1            # Tech increase when a civ trades w/o receiving resources in return.
 
 
 
@@ -40,6 +42,7 @@ class Model():
         self.list_civs = [Civ() for i in range(num_planets)]
         self.assign_planets()
         self.ranges = self.distances()
+        relations = [[{"Trade": False, "War": False}] * len(self.list_civs) for i in range(len(self.list_civs))]
 
     def assign_planets(self):
         ''' Model __init__() helper function. Assigns civs to unoccupied planets such that every planet is assigned 1 civ.
@@ -122,6 +125,7 @@ class Model():
                 # Check if defender is eliminated after losing the planet
                 if defender.check_if_dead(t):
                     print(f"\tCiv {defender.get_id()} has been eliminated by Civ {attacker.get_id()}.")
+                    self.list_civs.remove(defender)
             elif targeted_planet and targeted_planet.get_civ() != defender:
                  print(f"\tTargeted planet {targeted_planet.get_id()} is no longer owned by defender Civ {defender.get_id()}. No conquest from this battle.")
             elif not targeted_planet:
@@ -139,102 +143,121 @@ class Model():
             print(f"\tAttacker Civ {attacker.get_id()} loses {WAR_PENALTY} tech and culture due to failed attack.")
             # No planets change hands if the defender wins the battle.
 
+    def civs_trade(self, civ1, civ2):
+        # Calculating material amounts to exchange.
+        amt_to_trade = Counter([min(civ2_supply, civ1_demand) for (civ2_supply, civ1_demand) in (civ2.get_surplus().values(), civ1.get_deficit().values())] - \
+                               [min(civ1_supply, civ2_demand) for (civ1_supply, civ2_demand) in (civ1.get_surplus().values(), civ2.get_deficit().values())])
+        # Exchanging resources.
+        civ1.resources = dict(Counter(self.resources) + amt_to_trade)
+        civ2.resources = dict(Counter(self.resources) - amt_to_trade)
+        # If civ2 isn't receiving any resources in turn, they receive a tech boost instead.
+        if not np.any([receiving < 0 for receiving in list(amt_to_trade)]):
+            civ2.tech += TRADE_TECH_BOOST
+
     def interact_civs(self, t): # Added turn 't'
         interactions = []
         conquest_events = []
-        for i, civ1 in enumerate(self.list_civs):
-            if not civ1.alive:
-                continue
-            for j, civ2 in enumerate(self.list_civs):
-                if i >= j or not civ2.alive:
-                    continue
+        for i, civ1 in enumerate(self.list_civs[:-1]):
+            priorities = [self.civs_war(civ1, civ2, t, ''' HERE '''), self.civs_trade(civ1, civ2)] if civ1.is_desparate else []
+            for j, civ2 in enumerate([civ for civ in self.list_civs[i + 1:] if self.can_interact(civ1, civ2) and self.can_interact(civ2, civ1)]):
+                interaction_details = {'civ1': civ1, 'civ2': civ2} # Base details
+                priorities[0]
+                priorities[1]
+                priorities[2]
 
-                if self.can_interact(civ1, civ2) and self.can_interact(civ2, civ1):
-                    interaction_details = {'civ1': civ1, 'civ2': civ2} # Base details
+                # PART TWO
+                # - Determining closest war target.
+                # - Refactor logic to determine needs, priorities, and execute on optimal target.
+                attacker, defender = civ1, civ2 if civ1.get_friendliness() < civ2.get_friendliness() else civ2, civ1
+                targets = np.array([[(target, self.ranges[target][origin]) for target in defender.get_planet_ids()] for origin in attacker.get_planet_ids])
+                closest_target_id = targets[np.argmin(targets[:,:,1]), 0]
 
-                    if civ1.get_friendliness() == 1 and civ2.get_friendliness() == 1:
-                        interaction_details['type'] = 'cooperation'
-                        print(f"\tCivilizations {civ1.get_id()} and {civ2.get_id()} are cooperating.")
-                        self.civs_cooperate(civ1, civ2)
-                    elif civ1.get_friendliness() == 0 or civ2.get_friendliness() == 0:
-                        interaction_details['type'] = 'war'
-                        # Determine the actual attacker and defender for this war interaction
-                        actual_attacker, actual_defender = None, None
-                        if civ1.get_friendliness() == 0 and civ2.get_friendliness() == 1: # civ1 aggressive, civ2 friendly
+                if civ1.get_friendliness() == 1 and civ2.get_friendliness() == 1:
+                    interaction_details['type'] = 'cooperation'
+                    print(f"\tCivilizations {civ1.get_id()} and {civ2.get_id()} are cooperating.")
+                    self.civs_cooperate(civ1, civ2)
+                elif civ1.get_friendliness() == 0 or civ2.get_friendliness() == 0:
+                    interaction_details['type'] = 'war'
+                    # Determine the actual attacker and defender for this war interaction
+                    actual_attacker, actual_defender = None, None
+                    if civ1.get_friendliness() == 0 and civ2.get_friendliness() == 1: # civ1 aggressive, civ2 friendly
+                        actual_attacker = civ1
+                        actual_defender = civ2
+                    elif civ2.get_friendliness() == 0 and civ1.get_friendliness() == 1: # civ2 aggressive, civ1 friendly
+                        actual_attacker = civ2
+                        actual_defender = civ1
+                    elif civ1.get_friendliness() == 0 and civ2.get_friendliness() == 0: # both aggressive
+                        # If both are aggressive, decide who attacks. For now, simple random choice or based on ID.
+                        # Let's make the one with lower ID the attacker for predictability in this case.
+                        if civ1.get_id() < civ2.get_id():
                             actual_attacker = civ1
                             actual_defender = civ2
-                        elif civ2.get_friendliness() == 0 and civ1.get_friendliness() == 1: # civ2 aggressive, civ1 friendly
+                        else:
                             actual_attacker = civ2
                             actual_defender = civ1
-                        elif civ1.get_friendliness() == 0 and civ2.get_friendliness() == 0: # both aggressive
-                            # If both are aggressive, decide who attacks. For now, simple random choice or based on ID.
-                            # Let's make the one with lower ID the attacker for predictability in this case.
-                            if civ1.get_id() < civ2.get_id():
-                                actual_attacker = civ1
-                                actual_defender = civ2
-                            else:
-                                actual_attacker = civ2
-                                actual_defender = civ1
-                        else: # This case (both friendly but war determined) should be rare/avoided by earlier logic.
-                              # Default to civ1 attacking civ2 if it somehow occurs.
-                            actual_attacker = civ1
-                            actual_defender = civ2
-                        
-                        interaction_details['attacker'] = actual_attacker # For visualization arrow
-                        interaction_details['defender'] = actual_defender # For visualization context
+                    else: # This case (both friendly but war determined) should be rare/avoided by earlier logic.
+                            # Default to civ1 attacking civ2 if it somehow occurs.
+                        actual_attacker = civ1
+                        actual_defender = civ2
+                    
+                    interaction_details['attacker'] = actual_attacker # For visualization arrow
+                    interaction_details['defender'] = actual_defender # For visualization context
 
-                        # Determine the specific planet of the defender that is being targeted
-                        defender_target_planet_object = None
-                        defender_planets_list = list(actual_defender.get_planets().values())
-                        if defender_planets_list:
-                            # For simplicity, still targeting the first planet of the defender.
-                            # This could be made more sophisticated (e.g., closest, weakest, etc.)
-                            defender_target_planet_object = defender_planets_list[0]
-                            interaction_details['defender_target_planet_initial_pos'] = defender_target_planet_object.get_pos()
-                        else:
-                            interaction_details['defender_target_planet_initial_pos'] = None 
+                    # Determine the specific planet of the defender that is being targeted
+                    defender_target_planet_object = None
+                    defender_planets_list = list(actual_defender.get_planets().values())
+                    if defender_planets_list:
+                        # For simplicity, still targeting the first planet of the defender.
+                        # This could be made more sophisticated (e.g., closest, weakest, etc.)
+                        defender_target_planet_object = defender_planets_list[0]
+                        interaction_details['defender_target_planet_initial_pos'] = defender_target_planet_object.get_pos()
+                    else:
+                        interaction_details['defender_target_planet_initial_pos'] = None 
 
-                        print(f"\tWar: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{defender_target_planet_object.get_id() if defender_target_planet_object else 'None'}")
-                        self.civs_war(actual_attacker, actual_defender, t, defender_target_planet_object)
-                        if(defender_target_planet_object in actual_attacker.get_planets().values()):
-                            conquest_events.append({"planet_id": defender_target_planet_object.get_id(), "new_owner_civ_id": actual_attacker.get_id(), "old_owner_civ_id": actual_defender.get_id()})
-
-                    interactions.append(interaction_details)
+                    print(f"\tWar: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{defender_target_planet_object.get_id() if defender_target_planet_object else 'None'}")
+                    self.civs_war(actual_attacker, actual_defender, t, defender_target_planet_object)
+                    if(defender_target_planet_object in actual_attacker.get_planets().values()):
+                        conquest_events.append({"planet_id": defender_target_planet_object.get_id(), "new_owner_civ_id": actual_attacker.get_id(), "old_owner_civ_id": actual_defender.get_id()})
+                interactions.append(interaction_details)
         return interactions, conquest_events
 
     def run_simulation(self):
         t = 0
         while True:
+            # 0) Turn Increment:
             t += 1
-            print(f"Turn {t}:")            
+            print(f"Turn {t}:")
+            # 1) Updating Attributes:       
             for civ in self.list_civs:
-                if not civ.alive:
-                    continue
                 civ.update_attributes()
                 if civ.has_won_culture_victory:
-                    message = f"Civilization {civ.get_id()} has achieved a culture victory!"
+                    message = f"\tCivilization {civ.get_id()} has achieved a culture victory!"
                     # Yield message multiple times for display duration
                     yield message
                     yield message
                     yield message
                     return # Stop simulation
-
-            interactions, conquest_events = self.interact_civs(t) # Pass turn 't'
+            # 2) Civ Interactions:
+            interactions, conquest_events = self.interact_civs(t, self.list_civs) # Pass turn 't'
             yield t, interactions, conquest_events
-
-            alive_civs = [civ for civ in self.list_civs if civ.alive]
-            if len(alive_civs) == 1:
-                message = f"\tCivilization {alive_civs[0].get_id()} has won the simulation through military!"
+            # 3) Check End Conditions:
+            if len(self.list_civs) == 1:
+                message = f"\tCivilization {self.list_civs[0].get_id()} has won the simulation through military!"
                 print(message) # Console print for military victory
                 yield message
                 yield message
                 yield message
                 return
-            if not alive_civs:
+            if np.any([civ.has_won_culture_victory for civ in self.list_civs]):
+                message = f"\tCivilization {civ.get_id()} has achieved a culture victory!"
+                yield message
+                yield message
+                yield message
+                return
+            if not self.list_civs:
                 message = "\tAll civilizations have been eliminated."
                 print(message) # Console print for all civilizations eliminated
                 yield message
                 yield message
                 yield message
                 return
-            del interactions, conquest_events

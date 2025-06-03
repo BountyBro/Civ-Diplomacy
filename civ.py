@@ -8,6 +8,7 @@ from collections import Counter
 
 ##### CONSTANTS #####
 MAX_CULTURE = 100   # Amount of culture required for a culture victory.
+DESPERATION_POINT = 0.6         # Value at which a civilization is considered "desparate", and will prioritize war over trade.
 # Attribute Update Flow Variables
 beta_P =    0.5       # Tech growth rate from population.
 beta_E =    0.3       # Tech growth rate from energy.
@@ -24,6 +25,8 @@ f_c =       1.0       # Food consumption per capita (adjust if necessary)
 m_c =       0.3       # Mineral consumption per capita.
 alpha_T =   0.1       # Tech influence on energy demand.
 alpha_M =   0.1       # Mineral influence on energy demand.
+epsilon_R = 0.5       # Resource pressure's influence on desperation.
+epsilon_P = 0.5       # Population pressure's influence on desparation.
 
 
 
@@ -57,10 +60,13 @@ class Civ:
         self.population = 1.0                   # Total population of this civ. Units in 1,000 people.    
         self.population_cap = 0.0               # Maximum limit of population as determined by sum(self.planets.population_cap). Units in 1,000 people.
         self.max_growth_rate = 0                # Ceiling of population growth.
+        self.desperation = 0.0                  # Determinant to prioritize war or trade.   
+        self.is_desparate = False               # Checks desparation barrier.      
         
     def update_attributes(self, resources_step= {"energy": 0, "food": 0, "minerals": 0}):
         # Preparing flow variables.
         food_per_capita = self.resources["food"] / max(self.population, 1e-3)
+        self.max_growth_rate = 0.01 + 0.005 * np.tanh(self.tech / 100)
         growth_rate = self.max_growth_rate * min(1.0, food_per_capita)
         # Updating attributes
         self.population += self.population * growth_rate
@@ -76,7 +82,10 @@ class Civ:
         self.demand = {"energy": e_c * self.population + alpha_T * self.tech + alpha_M * self.military, "food": f_c * self.population, "minerals": m_c * self.military}
         flux = Counter(self.resources) - Counter(self.demand)
         self.surplus = dict((k, v if 0 < v else 0) for k, v in flux.items())
-        self.deficit = dict((k, -v if v < 0 else 0) for k, v in flux.items())
+        self.deficit = dict((k, abs(v) if v < 0 else 0) for k, v in flux.items())
+        self.desperation = epsilon_R * max(0, float(self.get_population() - self.get_population_cap()) / self.get_population_cap()) + \
+                           epsilon_P * np.sum(self.get_deficit().values() / np.sum(self.get_demand().values()))
+        self.is_desparate = DESPERATION_POINT < self.desperation
         # Checking Culture Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
             self.has_won_culture_victory = True
@@ -140,3 +149,12 @@ class Civ:
     
     def get_friendliness(self):
         return self.friendliness
+    
+    def get_deficit(self):
+        return self.deficit     # Returns a dictionary w/ keys "energy", "food", and "minerals".
+    
+    def get_surplus(self):
+        return self.surplus     # Returns a dictionary w/ keys "energy", "food", and "minerals".
+    
+    def get_demand(self):
+        return self.demand      # Returns a dictionary w/ keys "energy", "food", and "minerals".
