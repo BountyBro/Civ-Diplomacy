@@ -144,25 +144,29 @@ def visualize_simulation(model):
         for patch in strength_indicator_patches: patch.remove()
         strength_indicator_patches.clear()
 
-        if isinstance(frame_data, str): # Victory message frame
-            planet_dots.set_visible(False)
-            turn_title.set_text('')
-            end_message_text.set_text(frame_data)
+        # Check if frame_data is a victory/end message based on its structure
+        # model.py yields (message_string, [], []) for such cases
+        if len(frame_data) == 3 and isinstance(frame_data[0], str) and frame_data[1] == [] and frame_data[2] == []:
+            message_str = frame_data[0]
+            planet_dots.set_visible(False) # Hide planets during end message
+            turn_title.set_text('') # Clear turn title
+            end_message_text.set_text(message_str)
             end_message_text.set_visible(True)
-            # Return only essential artists when it's just a message
-            return [planet_dots, turn_title, end_message_text]
-
-        # Unpack turn data, now including conquest_events
+            # Return relevant artists
+            return [planet_dots, turn_title, end_message_text] + interaction_lines_and_arrows + strength_indicator_patches
+        
+        # Otherwise, it's a normal turn frame
         turn, current_interactions, conquest_events = frame_data 
         turn_title.set_text(f'Turn: {turn}')
 
+        # ----- PLANET DRAWING LOGIC RESTORED -----
         # Identify planets conquered this turn for the flash effect
         conquered_planet_ids_this_turn = {event['planet_id'] for event in conquest_events}
 
         # Update planet positions and colors.
         planet_positions = [p.get_pos() for p in model.list_planets]
         planet_plot_colors = []
-        planet_border_colors_final = [] # Renamed to avoid conflict with loop variable
+        planet_border_colors_final = [] 
 
         for i, p in enumerate(model.list_planets):
             if p.get_id() in conquered_planet_ids_this_turn:
@@ -228,85 +232,144 @@ def visualize_simulation(model):
         
         # Clip sizes to be within the defined visual range
         planet_plot_sizes = [max(min_dot_size, min(s, max_dot_size)) for s in planet_plot_sizes]
-        
-        # planet_border_colors was here, now planet_border_colors_final is built in the loop above
-
+                
         planet_dots.set_offsets(np.array(planet_positions)[:, ::-1] if planet_positions else np.array([]))
         planet_dots.set_color(planet_plot_colors if planet_plot_colors else 'gray')
         if model.list_planets:
             planet_dots.set_sizes(planet_plot_sizes)
-            planet_dots.set_edgecolors(planet_border_colors_final) # Use the final list 
+            planet_dots.set_edgecolors(planet_border_colors_final) 
         else:
             planet_dots.set_sizes([])
 
-        # Draw military strength indicators (Vertical Bars)
+        # ----- INTERACTION LINE DRAWING LOGIC RESTORED -----
+        for idx, interaction in enumerate(current_interactions): # Added idx for debug
+            civ1, civ2 = interaction['civ1'], interaction['civ2']
+            # Ensure both civs have planets based on the current state in the model objects
+            civ1_planets_for_interaction = list(civ1.get_planets().values())
+            civ2_planets_for_interaction = list(civ2.get_planets().values())
+
+            if civ1_planets_for_interaction and civ2_planets_for_interaction: 
+                pos1, pos2 = civ1_planets_for_interaction[0].get_pos(), civ2_planets_for_interaction[0].get_pos()
+                if interaction['type'] == 'trade':
+                    if len(civ1_planets_for_interaction) > 0 and len(civ2_planets_for_interaction) > 0: # Redundant check, but explicit
+                        line, = ax.plot([pos1[1], pos2[1]], [pos1[0], pos2[0]], color='green', linestyle='--', linewidth=2.5, zorder=10)
+                        interaction_lines_and_arrows.append(line)
+                elif interaction['type'] == 'war':
+                    attacker_obj = interaction.get('attacker', civ1) # Default to civ1 if 'attacker' not specified
+                    defender_target_initial_pos = interaction.get('defender_target_planet_initial_pos')
+                    
+                    # Ensure attacker has planets to attack from and a target position is defined
+                    attacker_planets_for_war = list(attacker_obj.get_planets().values())
+                    if attacker_planets_for_war and defender_target_initial_pos:
+                        start_pos = attacker_planets_for_war[0].get_pos()
+                        # Draw line for war
+                        line, = ax.plot([start_pos[1], defender_target_initial_pos[1]], [start_pos[0], defender_target_initial_pos[0]], color='red', lw=2.5, zorder=10)
+                        interaction_lines_and_arrows.append(line)
+                        # Draw arrow for war
+                        arrow = ax.annotate("", xy=(defender_target_initial_pos[1], defender_target_initial_pos[0]), 
+                                            xytext=(start_pos[1], start_pos[0]), 
+                                            arrowprops=dict(arrowstyle="->",color='red',lw=1.5,shrinkA=5,shrinkB=5),zorder=11)
+                        interaction_lines_and_arrows.append(arrow)
+            else: # One or both civs have no planets according to current state
+                pass
+        
+        # ----- STRENGTH INDICATOR DRAWING LOGIC -----
+        # Constants for bar drawing (inspired by user snippet)
         fixed_bar_width = 0.2
-        max_bar_height_visual = 0.8 # Max height in grid units
-        military_bar_color = 'purple'
-        tech_bar_color = 'deepskyblue'
-        culture_bar_color = 'gold' # Added for culture
-
-        # Constants for dynamic offset calculation
-        gap_from_planet_edge = 0.05
+        max_bar_height_visual = 0.8  # Max height in grid units for stat bars
+        gap_from_planet_edge = 0.1
         gap_between_bars = 0.05
-        min_expected_planet_radius_grid = 0.15 
-        max_expected_planet_radius_grid = 0.4  
-        # min_dot_size and max_dot_size are already defined in the outer scope (30, 250)
 
-        effective_max_military = getattr(model, 'MOCK_MAX_MILITARY_STRENGTH', 100) 
-        effective_max_tech = getattr(model, 'MOCK_MAX_TECH_STRENGTH', 100) 
-        effective_max_culture = getattr(model, 'MOCK_MAX_CULTURE', 100) # Added for culture
+        friendliness_bar_height_val = 0.15 # Renamed to avoid conflict
 
-        for i, p in enumerate(model.list_planets): # Added enumerate for planet_plot_sizes index
-            civ_owner = p.get_civ()
-            if civ_owner:
-                planet_pos_x, planet_pos_y = p.get_pos()[1], p.get_pos()[0] 
-                planet_s_value = planet_plot_sizes[i]
+        # Max values for normalization (assuming 100 if not otherwise specified by model/civ)
+        MAX_MILITARY = 100.0
+        MAX_TECH = 100.0
+        MAX_CULTURE = 100.0
 
-                # Calculate dynamic offset from planet edge
+        # For dynamic positioning based on planet visual size
+        min_dot_size_px = 30  # from planet_plot_sizes calculation
+        max_dot_size_px = 250 # from planet_plot_sizes calculation
+        # Estimate visual radius in data/grid coordinates.
+        # These are rough estimates; matplotlib sizing is complex (area vs radius).
+        # Assuming a somewhat linear mapping for simplicity of visual offset.
+        # Smallest planet visual diameter might be around 0.2 grid units, largest around 0.8-1.0.
+        min_expected_planet_radius_grid = 0.15 # Approximate radius in grid units for min_dot_size_px
+        max_expected_planet_radius_grid = 0.5  # Approximate radius in grid units for max_dot_size_px
+
+
+        for i, civ in enumerate(model.list_civs): # Use enumerate if accessing planet_plot_sizes by index
+            if civ.get_alive() and list(civ.get_planets().values()):
+                # Anchor bars to the civ's first planet
+                first_planet_obj = list(civ.get_planets().values())[0]
+                planet_pos_x_grid, planet_pos_y_grid = first_planet_obj.get_pos()[1], first_planet_obj.get_pos()[0] # grid_x, grid_y
+
+                # Find the plot size of this specific planet to estimate its visual radius
+                # This requires matching the planet object to its size calculated earlier
+                # This is a simplified approach; ideally, planet objects would store their last computed visual size
+                current_planet_s_value = 0 # Default
+                planet_index_in_model_list = -1
+                try:
+                    # Find the index of the first_planet_obj in the model.list_planets
+                    # This is crucial for fetching the correct size from planet_plot_sizes
+                    planet_index_in_model_list = model.list_planets.index(first_planet_obj)
+                    if planet_index_in_model_list < len(planet_plot_sizes): # planet_plot_sizes is defined in the update scope
+                         current_planet_s_value = planet_plot_sizes[planet_index_in_model_list] # This is in pixels squared (area)
+                    else: # Fallback or if planet_plot_sizes not yet fully populated for this civ's planet
+                        current_planet_s_value = min_dot_size_px # Default to min size if issue
+                except ValueError: # Planet not found in list, should not happen if civ owns it
+                     current_planet_s_value = min_dot_size_px
+
+
+                # Calculate dynamic offset from planet edge (from user snippet)
                 normalized_size_factor = 0.0
-                if (max_dot_size - min_dot_size) > 0: # Avoid division by zero
-                    normalized_size_factor = (planet_s_value - min_dot_size) / (max_dot_size - min_dot_size)
+                if (max_dot_size_px - min_dot_size_px) > 0: # Avoid division by zero
+                    # Convert current_planet_s_value (area) to a linear scale for normalization factor
+                    # This assumes s_value is proportional to radius^2. So, take sqrt for linear factor.
+                    # Normalize against sqrt of min/max dot sizes.
+                    linear_s_value = np.sqrt(current_planet_s_value)
+                    linear_min_dot_size = np.sqrt(min_dot_size_px)
+                    linear_max_dot_size = np.sqrt(max_dot_size_px)
+                    if (linear_max_dot_size - linear_min_dot_size) > 0:
+                        normalized_size_factor = (linear_s_value - linear_min_dot_size) / (linear_max_dot_size - linear_min_dot_size)
                 normalized_size_factor = min(1.0, max(0.0, normalized_size_factor)) # Clamp between 0 and 1
                 
                 current_planet_visual_radius_grid = min_expected_planet_radius_grid + \
                     normalized_size_factor * (max_expected_planet_radius_grid - min_expected_planet_radius_grid)
 
-                bar_base_y = planet_pos_y - (max_bar_height_visual / 2)
+                bar_base_y = planet_pos_y_grid - (max_bar_height_visual / 2) # Common bottom alignment for stat bars
 
                 # --- Military Bar (Right side, first) ---
-                military_strength = civ_owner.get_military()
-                normalized_military_strength = min(1.0, max(0.0, military_strength / effective_max_military))
+                military_strength = civ.get_military()
+                normalized_military_strength = min(1.0, max(0.0, military_strength / MAX_MILITARY if MAX_MILITARY > 0 else 0))
                 military_bar_height_actual = normalized_military_strength * max_bar_height_visual
                 
-                military_bar_x = planet_pos_x + current_planet_visual_radius_grid + gap_from_planet_edge
-                # military_bar_y = planet_pos_y - (military_bar_height_actual / 2) # Old: Centered vertically
-                military_bar_y = bar_base_y # New: Common bottom alignment
+                military_bar_x = planet_pos_x_grid + current_planet_visual_radius_grid + gap_from_planet_edge
+                military_bar_y = bar_base_y
                 
                 if military_bar_height_actual > 0: 
                     rect_mil = Rectangle((military_bar_x, military_bar_y), fixed_bar_width, military_bar_height_actual, 
-                                     facecolor=military_bar_color, edgecolor='black', linewidth=0.5, zorder=6)
+                                     facecolor='purple', edgecolor='black', linewidth=0.5, zorder=12) # zorder from 6 to 12
                     ax.add_patch(rect_mil)
                     strength_indicator_patches.append(rect_mil)
 
                 # --- Tech Bar (Right side, second) ---
-                tech_strength = civ_owner.get_tech()
-                normalized_tech_strength = min(1.0, max(0.0, tech_strength / effective_max_tech))
+                tech_strength = civ.get_tech()
+                normalized_tech_strength = min(1.0, max(0.0, tech_strength / MAX_TECH if MAX_TECH > 0 else 0))
                 tech_bar_height_actual = normalized_tech_strength * max_bar_height_visual
                 
                 tech_bar_x = military_bar_x + fixed_bar_width + gap_between_bars 
-                # tech_bar_y = planet_pos_y - (tech_bar_height_actual / 2) # Old: Centered vertically
-                tech_bar_y = bar_base_y # New: Common bottom alignment
+                tech_bar_y = bar_base_y
 
                 if tech_bar_height_actual > 0: 
                     rect_tech = Rectangle((tech_bar_x, tech_bar_y), fixed_bar_width, tech_bar_height_actual, 
-                                     facecolor=tech_bar_color, edgecolor='black', linewidth=0.5, zorder=6)
+                                     facecolor='deepskyblue', edgecolor='black', linewidth=0.5, zorder=12) # zorder from 6 to 12
                     ax.add_patch(rect_tech)
                     strength_indicator_patches.append(rect_tech)
                 
                 # --- Culture Bar (Right side, third) ---
-                culture_level = civ_owner.get_culture()
-                normalized_culture = min(1.0, max(0.0, culture_level / effective_max_culture))
+                culture_level = civ.get_culture()
+                normalized_culture = min(1.0, max(0.0, culture_level / MAX_CULTURE if MAX_CULTURE > 0 else 0))
                 culture_bar_height_actual = normalized_culture * max_bar_height_visual
 
                 culture_bar_x = tech_bar_x + fixed_bar_width + gap_between_bars
@@ -314,55 +377,52 @@ def visualize_simulation(model):
 
                 if culture_bar_height_actual > 0:
                     rect_culture = Rectangle((culture_bar_x, culture_bar_y), fixed_bar_width, culture_bar_height_actual,
-                                           facecolor=culture_bar_color, edgecolor='black', linewidth=0.5, zorder=6)
+                                           facecolor='gold', edgecolor='black', linewidth=0.5, zorder=12) # zorder from 6 to 12
                     ax.add_patch(rect_culture)
                     strength_indicator_patches.append(rect_culture)
                 
                 # --- Friendliness Bar (Below planet) ---
-                friendliness_value = civ_owner.get_friendliness()
-                friendliness_bar_height = 0.15
-                friendliness_bar_width = current_planet_visual_radius_grid * 2.5 # Make it a bit wider than planet
-                friendliness_bar_x = planet_pos_x - (friendliness_bar_width / 2) # Centered under planet
-                # Position below the planet dot, considering planet's visual radius
-                friendliness_bar_y = planet_pos_y - current_planet_visual_radius_grid - gap_from_planet_edge - friendliness_bar_height 
+                friendliness_value = civ.get_friendliness()
+                friendliness_bar_width_actual = current_planet_visual_radius_grid * 2.0 # Adjusted from 2.5
+                friendliness_bar_x_pos = planet_pos_x_grid - (friendliness_bar_width_actual / 2) # Centered under planet
+                friendliness_bar_y_pos = planet_pos_y_grid - current_planet_visual_radius_grid - gap_from_planet_edge - friendliness_bar_height_val 
 
                 friendliness_color = 'yellow' # Default
                 if friendliness_value < 0.25:
                     friendliness_color = 'red'
                 elif friendliness_value > 0.75:
-                    friendliness_color = 'lime' # Consistent with legend
+                    friendliness_color = 'lime'
                 
-                rect_friendliness = Rectangle((friendliness_bar_x, friendliness_bar_y), 
-                                              friendliness_bar_width, friendliness_bar_height,
-                                              facecolor=friendliness_color, edgecolor='black', linewidth=0.5, zorder=6)
+                rect_friendliness = Rectangle((friendliness_bar_x_pos, friendliness_bar_y_pos), 
+                                              friendliness_bar_width_actual, friendliness_bar_height_val,
+                                              facecolor=friendliness_color, edgecolor='black', linewidth=0.5, zorder=12) # zorder from 6 to 12
                 ax.add_patch(rect_friendliness)
                 strength_indicator_patches.append(rect_friendliness)
 
-        # Draw static interaction lines (war, base trade lines)
-        for interaction in current_interactions:
-            civ1, civ2 = interaction['civ1'], interaction['civ2']
-            if list(civ1.get_planets().values()) and list(civ2.get_planets().values()):
-                pos1, pos2 = list(civ1.get_planets().values())[0].get_pos(), list(civ2.get_planets().values())[0].get_pos()
-                if interaction['type'] == 'trade':
-                    line, = ax.plot([pos1[1], pos2[1]], [pos1[0], pos2[0]], color='green', linestyle=':', linewidth=1.5, zorder=10)
-                    interaction_lines_and_arrows.append(line)
-                elif interaction['type'] == 'war':
-                    attacker_obj = interaction.get('attacker', civ1)
-                    defender_target_initial_pos = interaction.get('defender_target_planet_initial_pos')
-                    if list(attacker_obj.get_planets().values()) and defender_target_initial_pos:
-                        start_pos = list(attacker_obj.get_planets().values())[0].get_pos()
-                        line, = ax.plot([start_pos[1], defender_target_initial_pos[1]], [start_pos[0], defender_target_initial_pos[0]], color='red', lw=2.5, zorder=10)
-                        interaction_lines_and_arrows.append(line)
-                        arrow = ax.annotate("", xy=(defender_target_initial_pos[1], defender_target_initial_pos[0]), xytext=(start_pos[1], start_pos[0]), arrowprops=dict(arrowstyle="->",color='red',lw=1.5,shrinkA=5,shrinkB=5),zorder=11)
-                        interaction_lines_and_arrows.append(arrow)
-        
-        return [planet_dots, turn_title, end_message_text] + strength_indicator_patches + interaction_lines_and_arrows
+        # For normal frames, return artists that are actively managed
+        return [planet_dots, turn_title, end_message_text] + interaction_lines_and_arrows + strength_indicator_patches
 
     # Use a default interval if model doesn't specify, or use model's preference
     interval_ms = getattr(model, 'LOGICAL_TURN_DURATION_MS', 1000)
+    # Get MAX_TURNS from the model instance for save_count
+    simulation_max_turns = getattr(model, 'max_turns', 200) # Default to 200 if not found
 
-    ani = animation.FuncAnimation(fig, update, frames=model.run_simulation, blit=True, 
-                                interval=interval_ms, repeat=False)
+    # Define init_func for FuncAnimation
+    def init():
+        turn_title.set_text('')
+        end_message_text.set_visible(False)
+        planet_dots.set_offsets(np.empty((0, 2)))
+        for item in interaction_lines_and_arrows: item.remove()
+        interaction_lines_and_arrows.clear()
+        for patch in strength_indicator_patches: patch.remove()
+        strength_indicator_patches.clear()
+        return [planet_dots, turn_title, end_message_text] + interaction_lines_and_arrows + strength_indicator_patches
+
+    # Create the generator object ONCE before passing it to FuncAnimation
+    simulation_frames_generator = model.run_simulation()
+    
+    ani = animation.FuncAnimation(fig, update, frames=simulation_frames_generator, init_func=init, blit=False, 
+                                interval=interval_ms, repeat=False, save_count=simulation_max_turns, cache_frame_data=False)
     ani.save('simulation_animation.gif', writer='pillow', fps=1000/interval_ms if interval_ms > 0 else 1)
     #plt.show()
 
@@ -538,7 +598,6 @@ class MockModel:
             
             for key in active_war_keys_to_remove:
                 del self.war_active_details[key]
-                print(f"Turn {t_logical}: War between Civ {key[0]} and Civ {key[1]} has ended.")
 
             if t_logical % 3 == 0 and len(self.list_civs) >= 2:
                 civ1_trade, civ2_trade = self.list_civs[0], self.list_civs[1]
@@ -562,7 +621,6 @@ class MockModel:
                             'end_turn': 7, 
                             'initial_target_pos': initial_target_pos_for_line
                         }
-                        print(f"Turn {t_logical}: War declared by Civ {attacker_civ.get_id()} on Civ {defender_civ.get_id()}, targeting planet {target_planet_for_war.get_id()}. War active until turn 7.")
                         
                         # Explicitly add war interaction for the declaration turn
                         interactions_for_logical_turn.append({
@@ -590,8 +648,6 @@ class MockModel:
                         'new_owner_civ_id': conquering_civ.get_id(),
                         'old_owner_civ_id': old_owner_civ_id
                     })
-                    print(f"Turn {t_logical}: Planet {planet_to_be_conquered.get_id()} (was Civ {old_owner_civ_id}) conquered by Civ {conquering_civ.get_id()}")
-                    self.targeted_planet_for_conquest_id = None 
                 elif planet_to_be_conquered and planet_to_be_conquered.get_civ() != conquering_civ : 
                     old_owner_civ_id = None 
                     conquering_civ.add_planet(planet_to_be_conquered)
@@ -601,8 +657,7 @@ class MockModel:
                         'new_owner_civ_id': conquering_civ.get_id(),
                         'old_owner_civ_id': old_owner_civ_id
                     })
-                    print(f"Turn {t_logical}: Unowned Planet {planet_to_be_conquered.get_id()} conquered by Civ {conquering_civ.get_id()}")
-                    self.targeted_planet_for_conquest_id = None
+                self.targeted_planet_for_conquest_id = None
 
             yield (t_logical, interactions_for_logical_turn, conquest_events_for_turn) 
         
@@ -614,7 +669,6 @@ class MockModel:
 
 
 if __name__ == "__main__":
-    print("Running visualization in test mode with mock data...")
     # Create a mock simulation model
     # Using values similar to init.py for consistency in grid size if applicable
     mock_simulation_model = MockModel(num_planets=10, grid_height=30, grid_width=30)

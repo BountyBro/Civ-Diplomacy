@@ -65,6 +65,7 @@ class Civ:
         self.max_growth_rate = 0                # Ceiling of population growth.
         self.desperation = 0.0                  # Determinant to prioritize war or trade.   
         self.is_desparate = False               # Checks desparation barrier.      
+        self.resource_pressure_component = 0.0  # Rp_i for WarScore: sum_k Deficit_ik / sum_k Demand_ik
         
         # Attributes for historical data plotting
         self.victories = 0
@@ -130,6 +131,7 @@ class Civ:
         deficit_pressure_for_desperation = 0.0
         if sum_demand_val > 0:
             deficit_pressure_for_desperation = sum_deficit_val / sum_demand_val
+        self.resource_pressure_component = deficit_pressure_for_desperation # Store Rp_i
         
         self.desperation = epsilon_R * self.population_pressure + epsilon_P * deficit_pressure_for_desperation
         self.is_desparate = DESPERATION_POINT < self.desperation

@@ -37,11 +37,25 @@ class Planet:
 
     def remove_civ(self):
         if self.civ:
+            # Calculate population to remove based on current number of planets
+            population_to_remove = 0
+            if self.civ.num_planets > 0: # Ensure num_planets is positive before division
+                # This planet's share of population, capped by this planet's capacity.
+                # Should be based on the idea that population is somewhat distributed.
+                population_share = self.civ.population / self.civ.num_planets 
+                population_to_remove = min(self.population_cap, population_share)
+            # Ensure we don't make population negative
+            population_to_remove = min(population_to_remove, self.civ.population) 
+
             del self.civ.planets[self.id]
-            self.civ.num_planets -= 1
+            self.civ.num_planets -= 1 # Decrement num_planets AFTER using it for population calculation
             self.civ.population_cap -= self.population_cap
-            self.civ.population -= min(self.population_cap, self.civ.population / self.civ.num_planets)
+            self.civ.population -= population_to_remove
             self.civ.resources = dict(Counter(self.civ.resources) - Counter(self.resources))
+            
+            # Check if civ should be marked dead is handled by civ.check_if_dead() in model.py
+            # which is called after a planet is conquered.
+
             self.civ = None
 
     def get_civ(self):

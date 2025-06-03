@@ -458,22 +458,30 @@ def generate_h1_plots(historical_data, civ_data_key='civ_data', save_path_prefix
         colorbar_label='Initiated War in Next 5 Turns (True/False)'
     )
 
-    # --- H1.2: Correlated line charts for selected civs (e.g., Civ 0 and Civ 1 from mock) --- 
-    # These IDs are hardcoded based on the mock data expectation for demonstration.
-    # In a real scenario, you might select civs dynamically or pass them as parameters.
-    example_civ_ids_for_h1_lines = [0, 1]
-    for civ_id_to_plot in example_civ_ids_for_h1_lines:
-        print(f"H1.2: Generating correlated line chart for Civ {civ_id_to_plot} (Tech, Military, War Initiations)...")
-        plot_line_chart(
-            historical_data=processed_historical_data, # Use the processed data
-            attributes=['tech', 'military', 'war_initiations'],
-            civ_ids=civ_id_to_plot,
-            civ_data_key=civ_data_key,
-            title=f'H1: Civ {civ_id_to_plot} - Tech, Military & War Initiations Over Time',
-            ylabels=['Technology Level', 'Military Strength', 'War Initiations (Count)'],
-            use_secondary_yaxis=False, 
-            save_path=f'{save_path_prefix}line_civ{civ_id_to_plot}_tech_military_war.png'
-        )
+    # --- H1.2: Correlated line charts for all civs --- 
+    all_civ_ids_in_run_h1 = set()
+    if processed_historical_data: # Use processed_historical_data as it contains the lookahead flag
+        for turn_data in processed_historical_data:
+            if civ_data_key in turn_data:
+                all_civ_ids_in_run_h1.update(turn_data[civ_data_key].keys())
+    
+    civ_ids_for_h1_lines = sorted(list(all_civ_ids_in_run_h1))
+
+    if not civ_ids_for_h1_lines:
+        print("H1.2: No civilizations found in historical data for line charts.")
+    else:
+        for civ_id_to_plot in civ_ids_for_h1_lines:
+            print(f"H1.2: Generating correlated line chart for Civ {civ_id_to_plot} (Tech, Military, War Initiations)...")
+            plot_line_chart(
+                historical_data=processed_historical_data,
+                attributes=['tech', 'military', 'war_initiations'],
+                civ_ids=civ_id_to_plot,
+                civ_data_key=civ_data_key,
+                title=f'H1: Civ {civ_id_to_plot} - Tech, Military & War Initiations Over Time',
+                ylabels=['Technology Level', 'Military Strength', 'War Initiations (Count)'],
+                use_secondary_yaxis=False,
+                save_path=f'{save_path_prefix}line_civ{civ_id_to_plot}_tech_military_war.png'
+            )
     print("H1 Plots: Generation complete.")
 
 def generate_h2_plots(historical_data, civ_data_key='civ_data', save_path_prefix='h2_', turns_before_war=2):
@@ -860,9 +868,18 @@ def generate_h6_plots(historical_data, civ_data_key='civ_data', save_path_prefix
 
     print(f"\n--- Generating plots for H6 (Victories, Friendliness, Conflict Escalation) ---")
 
-    # Select civs that have interesting war/victory patterns in mock data
-    # Civ 0 initiates war at t=16, Civ 1 initiates at t=8
-    civ_ids_for_h6_plots = [0, 1] 
+    # Dynamically get all unique civ_ids from historical_data
+    all_civ_ids_in_run = set()
+    if historical_data:
+        for turn_data in historical_data:
+            if civ_data_key in turn_data:
+                all_civ_ids_in_run.update(turn_data[civ_data_key].keys())
+    
+    civ_ids_for_h6_plots = sorted(list(all_civ_ids_in_run))
+
+    if not civ_ids_for_h6_plots:
+        print("H6 Plots: No civilizations found in historical data.")
+        return
 
     for civ_id_plot in civ_ids_for_h6_plots:
         # Check if the civ exists in the data to avoid errors if mock data changes
@@ -884,191 +901,3 @@ def generate_h6_plots(historical_data, civ_data_key='civ_data', save_path_prefix
         )
     
     print("H6 Plots: Generation attempt complete.")
-
-if __name__ == '__main__':
-    print("Running plotting.py in test mode with mock data...")
-    mock_historical_data = []
-    num_mock_turns = 20
-    mock_civ_ids_main = [0, 1, 2]
-    civ_data_key_for_mock_main = 'civ_data'
-    relations_data_key_for_mock_main = 'relations_data'
-    initial_stocks = {'food_stock': 1000, 'energy_stock': 500, 'minerals_stock': 300}
-
-    for t in range(1, num_mock_turns + 1):
-        turn_entry = {'turn': t, civ_data_key_for_mock_main: {}, relations_data_key_for_mock_main: {}}
-        temp_civ_cultures_this_turn = {}
-
-        for civ_id_val_main in mock_civ_ids_main:
-            if civ_id_val_main == 2 and t > 12:
-                turn_entry[civ_data_key_for_mock_main][civ_id_val_main] = {
-                    'status': 'eliminated', 'tech': 0, 'military': 0, 'culture': 0, 'war_initiations':0, 
-                    'war_initiated_predictor_flag': False,
-                    'food_pressure': 0, 'energy_pressure': 0, 'minerals_pressure': 0,
-                    'food_deficit': 0, 'energy_deficit': 0, 'minerals_deficit': 0,
-                    'population_pressure': 0,
-                    'food_stock': 0, 'energy_stock': 0, 'minerals_stock': 0, 
-                    'num_trade_partners': 0, 'is_at_war': False
-                }
-                temp_civ_cultures_this_turn[civ_id_val_main] = 0
-                continue
-            
-            pop_val = 100 + t * (civ_id_val_main + 1) * 5 - (civ_id_val_main * 20 if civ_id_val_main == 1 and t > 6 else 0)
-            tech_val = 10 + t * (civ_id_val_main + 1) * 1.5 + (15 if civ_id_val_main == 0 and t > 5 else 0)
-            mil_val = 20 + t * (civ_id_val_main * 2 + 1) + np.random.randint(-5, 5)
-            
-            # H5 Tweak: Culture adjustment
-            cult_val = 50 + t * (civ_id_val_main + 1)*2.5 + np.random.randint(-3,4) - (t*1.5 if civ_id_val_main == 0 else 0)
-            cult_val = max(1, cult_val)
-            temp_civ_cultures_this_turn[civ_id_val_main] = cult_val
-
-            # H5 Tweak: Friendliness decay adjustment
-            friendliness_decay_rate = 0.03
-            if civ_id_val_main in [1, 2]: # High potential cohort gets slower decay
-                friendliness_decay_rate = 0.015
-            friend_val = max(0.1, min(1.0, 0.5 + (civ_id_val_main * 0.15) - t * friendliness_decay_rate + np.random.rand() * 0.05))
-            
-            food_p = np.clip(0.2 + (t / num_mock_turns)*0.5 + np.random.rand()*0.3 - (civ_id_val_main*0.1), 0, 1)
-            energy_p = np.clip(0.3 + (t / num_mock_turns)*0.4 + np.random.rand()*0.4 - (civ_id_val_main*0.05), 0, 1)
-            minerals_p = np.clip(0.1 + (t / num_mock_turns)*0.6 + np.random.rand()*0.2 - (civ_id_val_main*0.15), 0, 1)
-            if civ_id_val_main == 1 and t > 7 and t < 12: food_p = np.clip(food_p + 0.3, 0,1); minerals_p = np.clip(minerals_p + 0.2,0,1)
-            if civ_id_val_main == 0 and t > 13 and t < 18: energy_p = np.clip(energy_p + 0.4, 0,1)
-            
-            war_init_count = 0
-            if civ_id_val_main == 0: war_init_count = 1 if t == 16 else 0
-            elif civ_id_val_main == 1: war_init_count = 1 if t == 8 else 0
-            
-            deficit_threshold = 0.65; deficit_scale = 100
-            food_d = max(0, food_p - deficit_threshold) * deficit_scale if war_init_count > 0 else 0
-            energy_d = max(0, energy_p - deficit_threshold) * deficit_scale if war_init_count > 0 else 0
-            minerals_d = max(0, minerals_p - deficit_threshold) * deficit_scale if war_init_count > 0 else 0
-            if civ_id_val_main == 0 and t == 16: food_d, energy_d, minerals_d = np.random.randint(30,70), np.random.randint(40,80), np.random.randint(20,60)
-            if civ_id_val_main == 1 and t == 8: food_d, energy_d, minerals_d = np.random.randint(40,80), np.random.randint(30,70), np.random.randint(30,70)
-            
-            current_status = 'active'
-            if civ_id_val_main == 2 and t > 12: current_status = 'eliminated'
-
-            # H5 Tweak: Resource stock adjustments
-            deficit_impact_food, deficit_impact_energy, deficit_impact_minerals = 0.5, 0.5, 0.5
-            rand_food_low, rand_food_high = -20, 20
-            rand_energy_low, rand_energy_high = -15, 15
-            rand_minerals_low, rand_minerals_high = -10, 10
-
-            if civ_id_val_main in [1, 2]: # High potential cohort
-                deficit_impact_food, deficit_impact_energy, deficit_impact_minerals = 0.3, 0.3, 0.3
-                rand_food_low, rand_food_high = -15, 25
-                rand_energy_low, rand_energy_high = -10, 20
-                rand_minerals_low, rand_minerals_high = -5, 15
-
-            fs = initial_stocks['food_stock'] + t*10 - food_d * deficit_impact_food + (np.random.randint(rand_food_low, rand_food_high) if current_status=='active' else 0)
-            es = initial_stocks['energy_stock'] + t*5 - energy_d * deficit_impact_energy + (np.random.randint(rand_energy_low, rand_energy_high) if current_status=='active' else 0)
-            ms = initial_stocks['minerals_stock'] + t*2 - minerals_d * deficit_impact_minerals + (np.random.randint(rand_minerals_low, rand_minerals_high) if current_status=='active' else 0)
-            
-            # H6: Adjusted 'victories' based on mock war events for this turn
-            # Initialize victories if not present (for t=1 or if loaded differently)
-            if t == 1:
-                current_victories = 0
-            else:
-                # Get victories from previous turn for this civ
-                prev_turn_data = next((item for item in mock_historical_data if item["turn"] == t-1), None)
-                if prev_turn_data and civ_id_val_main in prev_turn_data.get(civ_data_key_for_mock_main, {}):
-                    current_victories = prev_turn_data[civ_data_key_for_mock_main][civ_id_val_main].get('victories', 0)
-                else:
-                    current_victories = 0 # Should ideally not happen if data is consistent
-            
-            # Add a victory if this civ initiated a war this turn based on our hardcoded events
-            if civ_id_val_main == 1 and war_init_count > 0 and t == 8: # Civ 1 initiated war at t=8
-                current_victories += 1
-            elif civ_id_val_main == 0 and war_init_count > 0 and t == 16: # Civ 0 initiated war at t=16
-                current_victories += 1
-            # Note: This doesn't model defender victories or ongoing accumulation from a single war.
-            # It's a simplified way to get some victory points correlated with war initiations for H6 plotting.
-
-            turn_entry[civ_data_key_for_mock_main][civ_id_val_main] = {
-                'population': pop_val, 'tech': tech_val, 'military': mil_val, 'culture': cult_val,
-                'friendliness': friend_val, 
-                'victories': current_victories, # H6: Updated victories
-                'population_pressure': max(0, (pop_val - 1500*(1+0.2*civ_id_val_main)) / (1500*(1+0.2*civ_id_val_main))),
-                'resource_pressure': (food_p + energy_p + minerals_p) / 3,
-                'war_initiated_predictor_flag': (civ_id_val_main == 1 and 5 < t < 10) or (civ_id_val_main == 0 and t > 15 and tech_val > 30 and mil_val > 60),
-                'war_initiations': war_init_count, # H6: Used for plotting and victory logic
-                'status': current_status,
-                'food_pressure': food_p, 'energy_pressure': energy_p, 'minerals_pressure': minerals_p,
-                'food_deficit': food_d, 'energy_deficit': energy_d, 'minerals_deficit': minerals_d,
-                'food_stock': max(0, fs), 'energy_stock': max(0, es), 'minerals_stock': max(0, ms),
-                'num_trade_partners': 0, 'is_at_war': False
-            }
-
-        # --- Part 2: Determine Inter-Civ Relations (H4 logic) ---
-        active_civs_for_relations = [cid for cid, cdata in turn_entry[civ_data_key_for_mock_main].items() if cdata.get('status') == 'active']
-        for i in range(len(active_civs_for_relations)):
-            for j in range(i + 1, len(active_civs_for_relations)):
-                id1, id2 = active_civs_for_relations[i], active_civs_for_relations[j]
-                c1_cult = temp_civ_cultures_this_turn.get(id1, 1)
-                c2_cult = temp_civ_cultures_this_turn.get(id2, 1)
-                cultural_sim = 1 - (abs(c1_cult - c2_cult) / max(c1_cult, c2_cult)) if max(c1_cult, c2_cult) > 0 else 0
-                cultural_sim = round(cultural_sim, 2)
-                pair_key = tuple(sorted((id1, id2)))
-                relation_type = 'neutral'
-                is_specific_war_event = False
-                if pair_key == (0,1) and t == 8 and turn_entry[civ_data_key_for_mock_main].get(1, {}).get('war_initiations', 0) > 0:
-                    is_specific_war_event = True
-                elif pair_key == (0,2) and t == 16 and turn_entry[civ_data_key_for_mock_main].get(0, {}).get('war_initiations', 0) > 0:
-                    is_specific_war_event = True
-                
-                if is_specific_war_event: relation_type = 'war'
-                else:
-                    sim_alliance_thr, sim_trade_thr, sim_war_thr = 0.75, 0.50, 0.25
-                    if cultural_sim >= sim_alliance_thr: relation_type = 'alliance'
-                    elif cultural_sim >= sim_trade_thr: relation_type = 'trade'
-                    elif cultural_sim < sim_war_thr and np.random.rand() < 0.6: relation_type = 'war'
-                    if pair_key == (0,1) and t < 8 and relation_type not in ['war', 'alliance']: relation_type = 'trade'
-                
-                turn_entry[relations_data_key_for_mock_main][pair_key] = {'type': relation_type, 'cultural_similarity': cultural_sim}
-
-        # --- Part 3: Update Civ Data with H5 metrics (num_trade_partners, is_at_war) based on relations ---
-        current_relations_for_h5 = turn_entry.get(relations_data_key_for_mock_main, {})
-        civ_trade_partners_update_map = {cid: 0 for cid in mock_civ_ids_main}
-        civ_at_war_update_map = {cid: False for cid in mock_civ_ids_main}
-
-        for pair, relation_details in current_relations_for_h5.items():
-            c1_id_h5, c2_id_h5 = pair
-            rel_type_h5 = relation_details.get('type')
-            if c1_id_h5 in turn_entry[civ_data_key_for_mock_main] and c2_id_h5 in turn_entry[civ_data_key_for_mock_main] and \
-               turn_entry[civ_data_key_for_mock_main][c1_id_h5].get('status') == 'active' and \
-               turn_entry[civ_data_key_for_mock_main][c2_id_h5].get('status') == 'active':
-                if rel_type_h5 == 'trade' or rel_type_h5 == 'alliance':
-                    civ_trade_partners_update_map[c1_id_h5] += 1
-                    civ_trade_partners_update_map[c2_id_h5] += 1
-                elif rel_type_h5 == 'war':
-                    civ_at_war_update_map[c1_id_h5] = True
-                    civ_at_war_update_map[c2_id_h5] = True
-        
-        for civ_id_to_update_h5 in mock_civ_ids_main:
-            if civ_id_to_update_h5 in turn_entry[civ_data_key_for_mock_main]:
-                turn_entry[civ_data_key_for_mock_main][civ_id_to_update_h5]['num_trade_partners'] = civ_trade_partners_update_map.get(civ_id_to_update_h5, 0)
-                turn_entry[civ_data_key_for_mock_main][civ_id_to_update_h5]['is_at_war'] = civ_at_war_update_map.get(civ_id_to_update_h5, False)
-
-        mock_historical_data.append(turn_entry)
-
-    if mock_historical_data:
-        print(f"\nGenerated {len(mock_historical_data)} turns of mock historical data for plot testing.")
-        
-        print("\n--- Generating plots for H1 via dedicated function ---")
-        generate_h1_plots(mock_historical_data, civ_data_key_for_mock_main, save_path_prefix='h1_mock_')
-
-        print("\n--- Generating plots for H2 via dedicated function ---")
-        generate_h2_plots(mock_historical_data, civ_data_key_for_mock_main, save_path_prefix='h2_mock_')
-
-        print("\n--- Generating plots for H3 via dedicated function ---")
-        generate_h3_plots(mock_historical_data, civ_data_key_for_mock_main, save_path_prefix='h3_mock_')
-
-        print("\n--- Generating plots for H4 via dedicated function ---")
-        generate_h4_plots(mock_historical_data, civ_data_key_for_mock_main, relations_data_key_for_mock_main, save_path_prefix='h4_mock_')
-        
-        print("\n--- Generating plots for H5 via dedicated function ---")
-        generate_h5_plots(mock_historical_data, civ_data_key_for_mock_main, relations_data_key_for_mock_main, save_path_prefix='h5_mock_')
-        
-        print("\n--- Generating plots for H6 via dedicated function ---")
-        generate_h6_plots(mock_historical_data, civ_data_key_for_mock_main, save_path_prefix='h6_mock_')
-        
-        print("\nMock H1, H2, H3, H4, H5 & H6 plots generation attempted. Check for .png files in the directory.")
