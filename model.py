@@ -5,6 +5,8 @@ from random import sample
 from civ import Civ
 from planet import Planet
 from collections import Counter
+import os # Added for directory creation
+import plotting # Added for plotting functions
 
 
 
@@ -42,7 +44,10 @@ class Model():
         self.list_civs = [Civ() for i in range(num_planets)]
         self.assign_planets()
         self.ranges = self.distances()
+        # Store all initial civ IDs for complete historical tracking
+        self.all_initial_civ_ids = {civ.get_id() for civ in self.list_civs} 
         relations = [[{"Trade": False, "War": False}] * len(self.list_civs) for i in range(len(self.list_civs))]
+        self.historical_data = [] # Added for plotting
 
     def assign_planets(self):
         ''' Model __init__() helper function. Assigns civs to unoccupied planets such that every planet is assigned 1 civ.
@@ -192,6 +197,7 @@ class Model():
     def interact_civs(self, t): # Added turn 't'
         interactions = []
         conquest_events = []
+        civ_interaction_counts = {civ.get_id(): {'trades': 0, 'wars_participated': 0, 'wars_initiated': 0} for civ in self.list_civs if civ.get_alive()}
         
         # Create a list of civs that are still alive to prevent errors if a civ is eliminated mid-loop
         active_civs = [civ for civ in self.list_civs if civ.get_alive()]
@@ -310,11 +316,34 @@ class Model():
             
             if interaction_details['type'] != 'none':
                 interactions.append(interaction_details)
+                # Update civ interaction counts
+                if interaction_details['type'] == 'trade':
+                    if civ1.get_id() in civ_interaction_counts: civ_interaction_counts[civ1.get_id()]['trades'] += 1
+                    if civ2.get_id() in civ_interaction_counts: civ_interaction_counts[civ2.get_id()]['trades'] += 1
+                elif interaction_details['type'] == 'war':
+                    attacker = interaction_details.get('attacker')
+                    defender = interaction_details.get('defender')
+                    if attacker and attacker.get_id() in civ_interaction_counts:
+                        civ_interaction_counts[attacker.get_id()]['wars_participated'] += 1
+                        # War initiations are already tracked by civ.war_initiations_this_turn, reset each turn.
+                        # This count here is just for this interaction batch.
+                    if defender and defender.get_id() in civ_interaction_counts:
+                        civ_interaction_counts[defender.get_id()]['wars_participated'] += 1
                 
-        return interactions, conquest_events
+        return interactions, conquest_events, civ_interaction_counts
 
     def run_simulation(self):
         t = 0
+        # Clear Civ.instances at the beginning of a new simulation run to avoid carrying over state from previous runs if any
+        Civ.instances = [] # Ensure it's clean for each simulation
+        # Re-populate Civ.instances with the civs for the current simulation.
+        # This assumes __init__ of Civ appends to Civ.instances.
+        # An alternative would be to pass self.list_civs to _collect_historical_data if Civ.instances is problematic.
+        # For now, let's rely on Civ.__init__ populating it and model clearing it.
+        # Actually, model should populate it based on self.list_civs as it's the source of truth for *this* simulation's civs.
+        Civ.instances = list(self.list_civs)
+
+
         while True:
             # 0) Turn Increment:
             t += 1
@@ -334,6 +363,9 @@ class Model():
                     yield message, [], [] # Match tuple structure
                     yield message, [], []
                     yield message, [], []
+                    # Collect data for the turn of victory, interactions for this turn haven't happened yet.
+                    self._collect_historical_data(t, [], {}, is_final_turn=True, final_message=message) 
+                    self.generate_all_plots()
                     return # Stop simulation
                 
                 # Check if civ died during its own attribute update (e.g. starvation, internal collapse - not explicitly modeled yet but good place)
@@ -347,14 +379,24 @@ class Model():
             # 2) Civ Interactions:
             # Make sure to use a list of civs that are confirmed alive before starting interactions
             # interact_civs itself now iterates over a snapshot of active_civs
+            
+            # Reset per-turn counters on civs before interactions
+            for civ_obj in self.list_civs:
+                civ_obj.reset_turn_counters()
+
             if not self.list_civs: # All civs might have been eliminated by culture victories or other means
                 message = "\tAll civilizations have been eliminated (or only one remains due to culture victory)."
                 yield message, [], []
-                yield message, [], []
-                yield message, [], []
+                # Collect final turn data before returning
+                self._collect_historical_data(t, [], {}, is_final_turn=True, final_message=message)
+                self.generate_all_plots()
                 return
 
-            interactions, conquest_events = self.interact_civs(t) # Corrected: removed self.list_civs
+            interactions, conquest_events, civ_interaction_counts = self.interact_civs(t) # Corrected: removed self.list_civs
+            
+            # Collect data for plotting after interactions
+            self._collect_historical_data(t, interactions, civ_interaction_counts)
+            
             yield t, interactions, conquest_events
             
             # 3) Check End Conditions (after interactions):
@@ -381,6 +423,8 @@ class Model():
                     yield message, [], []
                     yield message, [], []
                     yield message, [], []
+                    self._collect_historical_data(t, interactions, civ_interaction_counts, is_final_turn=True, final_message=message) # Collect data before ending
+                    self.generate_all_plots()
                     return
 
             if not self.list_civs: # All civs eliminated
@@ -389,4 +433,147 @@ class Model():
                 yield message, [], [] # Match tuple structure
                 yield message, [], []
                 yield message, [], []
+                self._collect_historical_data(t, interactions, civ_interaction_counts, is_final_turn=True, final_message=message) # Collect data before ending
+                self.generate_all_plots()
                 return
+
+    def _collect_historical_data(self, turn, interactions, civ_interaction_counts_from_interact, is_final_turn=False, final_message=None):
+        turn_civ_data = {}
+        current_civ_map = {c.get_id(): c for c in self.list_civs} # Civs currently active
+
+        for civ_id_iter in self.all_initial_civ_ids: # Use the stored set of all initial civ IDs
+            civ = current_civ_map.get(civ_id_iter)
+            if civ: # Civ is currently active in self.list_civs
+                status = 'active'
+                num_trade_partners = civ_interaction_counts_from_interact.get(civ.get_id(), {}).get('trades', 0)
+                wars_participated = civ_interaction_counts_from_interact.get(civ.get_id(), {}).get('wars_participated', 0)
+                is_at_war_this_turn = wars_participated > 0
+                
+                demand = civ.get_demand()
+                surplus = civ.get_surplus()
+                deficit = civ.get_deficit()
+
+                turn_civ_data[civ.get_id()] = {
+                    'population': civ.get_population(),
+                    'tech': civ.get_tech(),
+                    'military': civ.get_military(),
+                    'culture': civ.get_culture(),
+                    'friendliness': civ.get_friendliness(),
+                    'status': status,
+                    'victories': civ.victories,
+                    'population_pressure': civ.population_pressure,
+                    'food_pressure': civ.food_pressure,
+                    'energy_pressure': civ.energy_pressure,
+                    'minerals_pressure': civ.minerals_pressure,
+                    'war_initiations': civ.war_initiations_this_turn,
+                    'food_stock': civ.resources.get('food', 0),
+                    'energy_stock': civ.resources.get('energy', 0),
+                    'minerals_stock': civ.resources.get('minerals', 0),
+                    'num_trade_partners': num_trade_partners,
+                    'is_at_war': is_at_war_this_turn,
+                    'desperation': civ.is_desparate,
+                    'planets_owned': len(civ.get_planets()),
+                    'total_demand_food': demand.get('food', 0),
+                    'total_demand_energy': demand.get('energy', 0),
+                    'total_demand_minerals': demand.get('minerals', 0),
+                    'total_surplus_food': surplus.get('food', 0),
+                    'total_surplus_energy': surplus.get('energy', 0),
+                    'total_surplus_minerals': surplus.get('minerals', 0),
+                    'total_deficit_food': deficit.get('food', 0),
+                    'total_deficit_energy': deficit.get('energy', 0),
+                    'total_deficit_minerals': deficit.get('minerals', 0),
+                }
+            else: # Civ was eliminated or not in self.list_civs for current turn
+                # Provide a basic entry indicating elimination.
+                # Plotting functions should check 'status'
+                turn_civ_data[civ_id_iter] = {'status': 'eliminated', 'civ_id': civ_id_iter}
+                # Add default zero/empty values for other keys H1/H6 might try to access for eliminated civs
+                # to prevent KeyErrors in plotting if it doesn't guard well.
+                attributes_for_eliminated = [
+                    'population', 'tech', 'military', 'culture', 'friendliness', 
+                    'victories', 'population_pressure', 'food_pressure', 'energy_pressure', 
+                    'minerals_pressure', 'war_initiations', 'food_stock',
+                    'energy_stock', 'minerals_stock', 'num_trade_partners', 'is_at_war', 
+                    'desperation', 'planets_owned', 'total_demand_food', 'total_demand_energy', 
+                    'total_demand_minerals', 'total_surplus_food', 'total_surplus_energy', 
+                    'total_surplus_minerals', 'total_deficit_food', 'total_deficit_energy', 
+                    'total_deficit_minerals'
+                ]
+                for attr in attributes_for_eliminated:
+                    turn_civ_data[civ_id_iter][attr] = 0 # Or appropriate default (e.g., 0.0 for floats, False for bools)
+
+
+        turn_relations_data = {}
+        # Cultural similarity calculation needs access to Civ objects by ID.
+        # Using Civ.instances was a previous approach. A safer way is to use the civ objects
+        # involved in the 'interactions' list directly if they are passed as objects.
+        # The 'interactions' list from 'interact_civs' contains civ1, civ2 as objects.
+
+        for interaction in interactions:
+            civ1_obj = interaction.get('civ1') 
+            civ2_obj = interaction.get('civ2')
+
+            if civ1_obj and civ2_obj: # Ensure both objects are present
+                c1_id = civ1_obj.get_id()
+                c2_id = civ2_obj.get_id()
+                pair_key = tuple(sorted((c1_id, c2_id)))
+                
+                c1_culture = civ1_obj.get_culture()
+                c2_culture = civ2_obj.get_culture()
+
+                cultural_sim = 0.0
+                if c1_culture == c2_culture:
+                    cultural_sim = 1.0
+                else:
+                    max_culture = max(float(c1_culture), float(c2_culture)) # Ensure float for division
+                    if max_culture == 0: 
+                        cultural_sim = 1.0
+                    else:
+                        cultural_sim = 1.0 - abs(float(c1_culture) - float(c2_culture)) / max_culture
+                
+                turn_relations_data[pair_key] = {
+                    'type': interaction.get('type', 'unknown'),
+                    'cultural_similarity': cultural_sim
+                }
+        
+        snapshot = {
+            'turn': turn,
+            'civ_data': turn_civ_data,
+            'relations_data': turn_relations_data
+        }
+        if is_final_turn and final_message:
+            snapshot['final_message'] = final_message
+
+        self.historical_data.append(snapshot)
+
+    def generate_all_plots(self):
+        output_dir = "output/plots"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        print(f"\nGenerating plots in {output_dir}...")
+
+        if not self.historical_data:
+            print("No historical data to plot.")
+            return
+
+        # H1: Resource/Desperation Dynamics Leading to Conflict/Trade
+        plotting.generate_h1_plots(self.historical_data, save_path_prefix=os.path.join(output_dir, "h1_"))
+        
+        # H2: Military Buildup and Conflict Escalation
+        plotting.generate_h2_plots(self.historical_data, save_path_prefix=os.path.join(output_dir, "h2_"))
+
+        # H3: Friendliness, Cooperation, and Cultural Exchange
+        plotting.generate_h3_plots(self.historical_data, save_path_prefix=os.path.join(output_dir, "h3_"))
+
+        # H4: Cultural Similarity and Interaction Choice (Network Graph for last turn)
+        # The plotting function takes snapshot_turn=-1 to use the last turn by default.
+        plotting.generate_h4_plots(self.historical_data, save_path_prefix=os.path.join(output_dir, "h4_"))
+
+        # H5: Tech Advancement, Resource Needs, and Trade/Conflict Propensity (Scatter plots)
+        plotting.generate_h5_plots(self.historical_data, save_path_prefix=os.path.join(output_dir, "h5_"))
+
+        # H6: Civilization Lifespans and Victory Conditions
+        plotting.generate_h6_plots(self.historical_data, save_path_prefix=os.path.join(output_dir, "h6_"))
+        
+        print("Plot generation complete.")

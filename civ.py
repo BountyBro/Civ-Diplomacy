@@ -40,6 +40,8 @@ def proclaim_culture_victory(civ_id):
 ##### CLASSES #####
 class Civ:
     id_iter = 0
+    instances = [] # Added to track all civ instances
+
     def __init__(self, tech= 0, culture= 0, military= 0):
         # Model Controllers:
         self.civ_id = Civ.id_iter               # The civilzation ID for unique identification and iteration.
@@ -48,22 +50,39 @@ class Civ:
         self.has_won_culture_victory = False    # Added flag for clean stop.
         self.planets = {}                       # Dictionary of planets owned by the civ. Key is the planet ID, value is the planet object.
         Civ.id_iter += 1                        # Incrementing class ID counter.
+        Civ.instances.append(self) # Added to track all civ instances
         # Attributes:
         self.friendliness = random()            # The friendliness of a civ. 
         self.culture = max(0, culture)          # The attribute that determines how close a civ is to a culture victory.
         self.military = max(0, military)        # The attribute that determines a civ's odds of success in war.
         self.tech = max(0, tech)                # The attribute that determines how far a civ can travel.
         self.resources = {"energy": 0, "food": 0, "minerals": 0}
-        self.demand = np.zeros(3)               # Need for resources (refer to prior line).
-        self.surplus = np.zeros(3)              # Excess of resources.
-        self.deficit = np.zeros(3)              # Deficit of resources.
+        self.demand = {}                        # Needs for resources (energy, food, minerals). Initialized as dict.
+        self.surplus = {}                       # Excess of resources. Initialized as dict.
+        self.deficit = {}                       # Deficit of resources. Initialized as dict.
         self.population = 1.0                   # Total population of this civ. Units in 1,000 people.    
         self.population_cap = 0.0               # Maximum limit of population as determined by sum(self.planets.population_cap). Units in 1,000 people.
         self.max_growth_rate = 0                # Ceiling of population growth.
         self.desperation = 0.0                  # Determinant to prioritize war or trade.   
         self.is_desparate = False               # Checks desparation barrier.      
         
+        # Attributes for historical data plotting
+        self.victories = 0
+        self.population_pressure = 0.0
+        self.food_pressure = 0.0
+        self.energy_pressure = 0.0
+        self.minerals_pressure = 0.0
+        self.war_initiations_this_turn = 0
+        # Resource stocks are available via self.resources
+        # num_trade_partners and is_at_war will be determined by Model per turn.
+
+    def reset_turn_counters(self): # Added method
+        self.war_initiations_this_turn = 0
+
     def update_attributes(self, resources_step= {"energy": 0, "food": 0, "minerals": 0}):
+        # Reset per-turn counters
+        # self.war_initiations_this_turn = 0 # This is now handled by reset_turn_counters, called by Model
+
         # Preparing flow variables.
         food_per_capita = self.resources["food"] / max(self.population, 1e-3)
         self.max_growth_rate = 0.01 + 0.005 * np.tanh(self.tech / 100)
@@ -86,26 +105,33 @@ class Civ:
 
         # Calculate population pressure, avoiding division by zero
         current_pop_cap = self.get_population_cap()
-        population_pressure = 0.0
         if current_pop_cap <= 0:
-            # If cap is zero or less, any population means high pressure; no population means no pressure.
             if self.get_population() > 0:
-                # Representing very high pressure; could also use a large constant or handle as an extreme state.
-                # For now, let's set a high finite value or consider if pop > 0 and cap <= 0 means immediate crisis elsewhere.
-                # Using a large multiplier for now, or can be set to a specific high value.
-                population_pressure = float(self.get_population()) # Effectively, pressure is proportional to population if no cap.
-            # else population_pressure remains 0
+                self.population_pressure = float(self.get_population())
+            else:
+                self.population_pressure = 0.0
         else:
-            population_pressure = max(0.0, float(self.get_population() - current_pop_cap) / current_pop_cap)
+            self.population_pressure = max(0.0, float(self.get_population() - current_pop_cap) / current_pop_cap)
 
-        # Calculate deficit pressure, avoiding division by zero
-        sum_demand_val = np.sum(list(self.get_demand().values())) # Convert to list for np.sum
-        sum_deficit_val = np.sum(list(self.get_deficit().values())) # Convert to list for np.sum
-        deficit_pressure_val = 0.0
+        # Calculate individual resource pressures (deficit / demand, if demand > 0)
+        resource_keys = ["energy", "food", "minerals"]
+        for key in resource_keys:
+            demand_val = self.demand.get(key, 0)
+            deficit_val = self.deficit.get(key, 0)
+            pressure_attr_name = f"{key}_pressure" # e.g., self.energy_pressure
+            if demand_val > 0:
+                setattr(self, pressure_attr_name, deficit_val / demand_val)
+            else:
+                setattr(self, pressure_attr_name, 0.0 if deficit_val == 0 else 1.0) # Max pressure if demand is 0 but deficit exists
+
+        # Calculate deficit pressure for overall desperation calculation
+        sum_demand_val = np.sum(list(self.get_demand().values()))
+        sum_deficit_val = np.sum(list(self.get_deficit().values()))
+        deficit_pressure_for_desperation = 0.0
         if sum_demand_val > 0:
-            deficit_pressure_val = sum_deficit_val / sum_demand_val
+            deficit_pressure_for_desperation = sum_deficit_val / sum_demand_val
         
-        self.desperation = epsilon_R * population_pressure + epsilon_P * deficit_pressure_val
+        self.desperation = epsilon_R * self.population_pressure + epsilon_P * deficit_pressure_for_desperation
         self.is_desparate = DESPERATION_POINT < self.desperation
         # Checking Culture Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:

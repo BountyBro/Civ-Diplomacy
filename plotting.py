@@ -492,6 +492,7 @@ def generate_h2_plots(historical_data, civ_data_key='civ_data', save_path_prefix
 
     print(f"\n--- Generating plots for H2 (Economic Desperation) ---")
     processed_civ_war_events = set() # To avoid plotting multiple times if a war spans turns with war_initiations > 0
+    found_any_war_initiation_h2 = False # Added flag
 
     for turn_idx, current_turn_data in enumerate(historical_data):
         current_turn_number = current_turn_data['turn']
@@ -502,6 +503,7 @@ def generate_h2_plots(historical_data, civ_data_key='civ_data', save_path_prefix
                 continue
 
             if civ_attributes.get('war_initiations', 0) > 0:
+                found_any_war_initiation_h2 = True # Set flag
                 war_event_key = (civ_id, current_turn_number) # Uniquely identify this war initiation event instance
                 if war_event_key in processed_civ_war_events:
                     continue
@@ -558,6 +560,10 @@ def generate_h2_plots(historical_data, civ_data_key='civ_data', save_path_prefix
                     )
                 else:
                     print(f"H2.2: No deficit data or zero deficits for Civ {civ_id} at Turn {current_turn_number} for war initiation.")
+    
+    if not found_any_war_initiation_h2:
+        print("H2 Plots: No war initiations found in the entire simulation run. No H2 plots will be generated.")
+
     print("H2 Plots: Generation attempt complete.")
 
 def generate_h3_plots(historical_data, civ_data_key='civ_data', save_path_prefix='h3_'):
@@ -772,7 +778,7 @@ def generate_h5_plots(historical_data, civ_data_key='civ_data', relations_data_k
         return
 
     friendliness_threshold_h5 = 0.6
-    culture_threshold_h5 = 55.0 
+    culture_threshold_h5 = 0.0
     cohorts = {'high_potential': [], 'other': []}
     for civ_id, conditions in initial_conditions.items():
         if conditions['friendliness'] >= friendliness_threshold_h5 and \
