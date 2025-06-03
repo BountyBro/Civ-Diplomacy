@@ -83,8 +83,29 @@ class Civ:
         flux = Counter(self.resources) - Counter(self.demand)
         self.surplus = dict((k, v if 0 < v else 0) for k, v in flux.items())
         self.deficit = dict((k, abs(v) if v < 0 else 0) for k, v in flux.items())
-        self.desperation = epsilon_R * max(0, float(self.get_population() - self.get_population_cap()) / self.get_population_cap()) + \
-                           epsilon_P * np.sum(self.get_deficit().values() / np.sum(self.get_demand().values()))
+
+        # Calculate population pressure, avoiding division by zero
+        current_pop_cap = self.get_population_cap()
+        population_pressure = 0.0
+        if current_pop_cap <= 0:
+            # If cap is zero or less, any population means high pressure; no population means no pressure.
+            if self.get_population() > 0:
+                # Representing very high pressure; could also use a large constant or handle as an extreme state.
+                # For now, let's set a high finite value or consider if pop > 0 and cap <= 0 means immediate crisis elsewhere.
+                # Using a large multiplier for now, or can be set to a specific high value.
+                population_pressure = float(self.get_population()) # Effectively, pressure is proportional to population if no cap.
+            # else population_pressure remains 0
+        else:
+            population_pressure = max(0.0, float(self.get_population() - current_pop_cap) / current_pop_cap)
+
+        # Calculate deficit pressure, avoiding division by zero
+        sum_demand_val = np.sum(list(self.get_demand().values())) # Convert to list for np.sum
+        sum_deficit_val = np.sum(list(self.get_deficit().values())) # Convert to list for np.sum
+        deficit_pressure_val = 0.0
+        if sum_demand_val > 0:
+            deficit_pressure_val = sum_deficit_val / sum_demand_val
+        
+        self.desperation = epsilon_R * population_pressure + epsilon_P * deficit_pressure_val
         self.is_desparate = DESPERATION_POINT < self.desperation
         # Checking Culture Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
