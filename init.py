@@ -12,7 +12,6 @@ from time import time
 
 ##### MAIN #####
 if __name__ == "__main__":
-    # Create a simulation model - provided parameters are user-adjustable.
     ''' Scenarios include:
     - "Friendzone": All civs start at maximum friendliness.
     - "Thunderdome": All civs start at minimum friendliness.
@@ -20,15 +19,18 @@ if __name__ == "__main__":
     - "Wolf": 1 civ starts at minimum friendliness, and the rest start at maximum friendliness.
     Scenarios are not case-sensitive. Any other value will provide a random simulation outside these scenarios.
     '''
-    ''' # Default Run Args:
+
+    # Default Run Args:
+    # Create a simulation model - provided parameters are user-adjustable.
     simulation_model = Model(num_planets= 15, grid_height= 30, grid_width= 30, scenario= "Thunderdome")
     # Start the visualization
     visualize_simulation(simulation_model)
     # Store a .txt log of the simulation to convert to plots when needed.
     simulation_model.generate_sim_log()
     # log_to_plots("output/logs/name_of_the_log_file") # Will work w/ either raw file name (if in output/logs), or relative path as shown here.
-    '''
-    # Sim Series Args
+    
+
+    ''' # Sim Series Args
     num_runs = 100
     parameters = (15, 30, 30, "")
     sim_list = [Model(*parameters) for i in range(num_runs)]
@@ -42,5 +44,6 @@ if __name__ == "__main__":
     counts = [ends.count("Culture"), ends.count("Military"), ends.count("Stalemate")]
     end = time()
     print(f"{num_runs} trials ran in {end - start :.4f} seconds.")
-    # bar(["Culture", "Military", "Stalemate"], counts)
-    # show()
+    bar(["Culture", "Military", "Stalemate"], counts)
+    show()
+    '''

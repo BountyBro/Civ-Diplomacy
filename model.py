@@ -41,8 +41,8 @@ AGGRESSION_FRIENDLINESS_THRESHOLD = 0.10    # Friendliness below this can trigge
 MAX_TURNS_SIM = 200                         # Defining a max turn for the simulation run, used for save_count in animation.
 PLANET_CONQUEST_CHANCE_ON_WIN = 1.0         # Chance to conquer a planet after winning a battle for it.
 # Analysis TOGGLES:  True = ON, False = OFF
-LOG_TOGGLE = False                          # Boolean to toggle .txt log of simulation data.
-MASTER_PLOT_TOGGLE = False                  # Overrides all other plot toggles.
+LOG_TOGGLE = True                           # Boolean to toggle .txt log of simulation data.
+MASTER_PLOT_TOGGLE = True                   # Overrides all other plot toggles.
 PLOT_H1 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between desparation and war to output/plots.
 PLOT_H2 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between military power and war to output/plots.
 PLOT_H3 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between friendliness and culture to output/plots.

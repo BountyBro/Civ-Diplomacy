@@ -24,11 +24,11 @@ theta =     0.15      # Friendliness decay from combat victories.
 beta_f =    0.1       # Friendliness growth from cultural smoothing.
 e_c =       1.0       # Energy consumption per capita
 f_c =       1.0       # Food consumption per capita (adjust if necessary)
-m_c =       0.3       # Mineral consumption per capita.
+m_c =       1.0       # Mineral consumption per capita.
 alpha_T =   0.1       # Tech influence on energy demand.
 alpha_M =   0.1       # Mineral influence on energy demand.
-epsilon_R = 1.0       # Resource pressure's influence on desperation.
-epsilon_P = 1.0       # Population pressure's influence on desparation. 
+epsilon_R = 0.5       # Resource pressure's influence on desperation.
+epsilon_P = 0.5       # Population pressure's influence on desparation. 
 
 
 
