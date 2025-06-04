@@ -40,7 +40,9 @@ class Planet:
         self.civ = new_owner_civ
         if new_owner_civ:   # Ensure new_owner_civ is not None.
             new_owner_civ.planets[self.id] = self
-            new_owner_civ.resources = dict(Counter(new_owner_civ.resources) + Counter(self.resources))
+            new_amt_resources = Counter(new_owner_civ.resources)
+            new_amt_resources.update(self.resources)
+            new_owner_civ.resources = dict(new_amt_resources)
             new_owner_civ.population_cap += self.population_cap
             new_owner_civ.num_planets += 1
 

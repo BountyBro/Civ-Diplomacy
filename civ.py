@@ -9,7 +9,7 @@ from collections import Counter
 
 
 ##### CONSTANTS #####
-MAX_CULTURE = 200   # Amount of culture required for a culture victory.
+MAX_CULTURE = 800     # Amount of culture required for a culture victory.
 DESPERATION_POINT = 0.6         # Value at which a civilization is considered "desparate", and will prioritize war over trade.
 # Attribute Update Flow Variables
 beta_P =    0.5       # Tech growth rate from population.
@@ -136,7 +136,7 @@ class Civ:
         # Checking Culture Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
             self.has_won_culture_victory = True
-            print(f"\tCivilization {self.civ_id} has achieved a culture victory!")
+            # print(f"\tCivilization {self.civ_id} has achieved a culture victory!")
 
     def change_relations(self, civ2, new_relation):
         ''' Changes relations between calling 'Civ' agent and provided civ2 agent.
@@ -199,7 +199,7 @@ class Civ:
         self.planets.clear()
         self.num_planets = 0.0
         self.population = 0.0
-        print(f"\tCivilization {self.civ_id} has been eliminated at turn {t}.")
+        # print(f"\tCivilization {self.civ_id} has been eliminated at turn {t}.")
 
     # Getters
 

@@ -6,6 +6,7 @@ from visualize import visualize_simulation
 from civ import Civ
 from planet import Planet
 from matplotlib.pyplot import bar, show
+from time import time
 
 
 
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     - "Wolf": 1 civ starts at minimum friendliness, and the rest start at maximum friendliness.
     Scenarios are not case-sensitive. Any other value will provide a random simulation outside these scenarios.
     '''
-    ''' Default Run Args:
+    ''' # Default Run Args:
     simulation_model = Model(num_planets= 15, grid_height= 30, grid_width= 30, scenario= "Thunderdome")
     # Start the visualization
     visualize_simulation(simulation_model)
@@ -27,21 +28,19 @@ if __name__ == "__main__":
     simulation_model.generate_sim_log()
     # log_to_plots("output/logs/name_of_the_log_file") # Will work w/ either raw file name (if in output/logs), or relative path as shown here.
     '''
+    # Sim Series Args
     num_runs = 100
     parameters = (15, 30, 30, "")
     sim_list = [Model(*parameters) for i in range(num_runs)]
-    for i in range(100):
+    start = time()
+    for i in range(num_runs):
         Civ.id_iter = 0
         Planet.id_iter = 0
         for gen in sim_list[i].run_simulation():
             pass
     ends = [sim.end_type for sim in sim_list]
     counts = [ends.count("Culture"), ends.count("Military"), ends.count("Stalemate")]
-    bar(["Culture", "Military", "Stalemate"], counts)
-    show()
-
-
-
-''' KNOWN BUGS:
-- simulation_animation.gif shows that civ colors change between turns.
-'''
+    end = time()
+    print(f"{num_runs} trials ran in {end - start :.4f} seconds.")
+    # bar(["Culture", "Military", "Stalemate"], counts)
+    # show()
