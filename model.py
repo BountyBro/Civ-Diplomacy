@@ -40,7 +40,7 @@ AGGRESSION_FRIENDLINESS_THRESHOLD = 0.10    # Friendliness below this can trigge
 MAX_TURNS_SIM = 200                         # Defining a max turn for the simulation run, used for save_count in animation.
 PLANET_CONQUEST_CHANCE_ON_WIN = 0.6         # Chance to conquer a planet after winning a battle for it.
 # PLOT TOGGLES:      True = ON, False = OFF
-MASTER_PLOT_TOGGLE = True                   # Overrides all other plot toggles.
+MASTER_PLOT_TOGGLE = False                  # Overrides all other plot toggles.
 PLOT_H1 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between desparation and war to output/plots.
 PLOT_H2 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between military power and war to output/plots.
 PLOT_H3 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between friendliness and culture to output/plots.
@@ -255,7 +255,7 @@ class Model():
             print(f"\tCiv {civ2.get_id()} gets a tech boost from trade with Civ {civ1.get_id()}.")
             civ2.tech += TRADE_TECH_BOOST
 
-    def interact_civs(self, t, active_civs):
+    def interact_civs2(self, t, active_civs):
         ''' run_simulation() helper function and the civ agent decision-making hub. Runs actions for each living civ during turn t.
         Inputs:
             - t: Turn counter. Used for civ.check_if_dead() in civs_war() helper function.
@@ -351,7 +351,7 @@ class Model():
                                                 "old_owner_civ_id": war_target.get_id() if original_owner_civ else None})
         return interactions, conquest_events, civ_interaction_counts
 
-    def interact_civs2(self, t, active_civs):
+    def interact_civs(self, t, active_civs):
         ''' run_simulation() helper function and the civ agent decision-making hub. Runs actions for each living civ during turn t.
         Inputs:
             - t: Turn counter. Used for civ.check_if_dead() in civs_war() helper function.
