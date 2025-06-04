@@ -39,10 +39,10 @@ WAR_PENALTY = 0.1                           # Value of tech and culture penalty 
 TRADE_TECH_BOOST = 0.5                      # Tech increase when a civ trades w/o receiving resources in return.
 AGGRESSION_FRIENDLINESS_THRESHOLD = 0.10    # Friendliness below this can trigger aggression (was 0.15).
 MAX_TURNS_SIM = 200                         # Defining a max turn for the simulation run, used for save_count in animation.
-PLANET_CONQUEST_CHANCE_ON_WIN = 0.6         # Chance to conquer a planet after winning a battle for it.
+PLANET_CONQUEST_CHANCE_ON_WIN = 1.0         # Chance to conquer a planet after winning a battle for it.
 # Analysis TOGGLES:  True = ON, False = OFF
-LOG_TOGGLE = True                           # Boolean to toggle .txt log of simulation data.
-MASTER_PLOT_TOGGLE = False                   # Overrides all other plot toggles.
+LOG_TOGGLE = False                          # Boolean to toggle .txt log of simulation data.
+MASTER_PLOT_TOGGLE = False                  # Overrides all other plot toggles.
 PLOT_H1 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between desparation and war to output/plots.
 PLOT_H2 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between military power and war to output/plots.
 PLOT_H3 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between friendliness and culture to output/plots.
@@ -79,17 +79,18 @@ class Model():
                 self.list_civs = [Civ(self.num_planets, friendliness= 1) if i != 0 else Civ(self.num_planets, friendliness= 0) for i in range(num_planets)]
             case _:
                 self.list_civs = [Civ(self.num_planets) for i in range(num_planets)]
-        self.assign_planets()
+        self.assign_planets(num_planets)
         self.ranges = self.distances()
         # Store all initial civ IDs for complete historical tracking
         self.all_initial_civ_ids = {civ.get_id() for civ in self.list_civs} 
         self.max_turns = MAX_TURNS_SIM  # Store max_turns as an instance attribute       
         self.historical_data = []       # Added for plotting
         self.civ_ids = self.list_civs.copy()
+        self.end_type = ""
         
         
 
-    def assign_planets(self):
+    def assign_planets(self, num):
         ''' Model __init__() helper function. Assigns civs to unoccupied planets such that every planet is assigned 1 civ.
         Input:
             - Model Object: Holds the grid that planet coords are assigned to, the number of planets to make, a list of civs, and the list to append them to.
@@ -100,7 +101,7 @@ class Model():
         coords = np.array([[(row, col) for col in range(self.grid.shape[1])] for row in range(self.grid.shape[0])])
         for i in range(self.num_planets):
             random_available_coord = sample(coords[isAvailable].tolist(), 1)[0]
-            self.list_planets.append(Planet(random_available_coord[0], random_available_coord[1]))
+            self.list_planets.append(Planet(num, random_available_coord[0], random_available_coord[1]))
             isAvailable[random_available_coord[0], random_available_coord[1]] = False
             self.list_planets[i].assign_civ(self.list_civs[i])
         return
@@ -133,7 +134,7 @@ class Model():
         Output:
             - A boolean representing if any of civ2's planets are within civ1's range.
         '''
-        return np.any([[self.ranges[p1.get_id()][p2.get_id()] < civ1.tech for p1 in civ1.get_planets().values()] for p2 in civ2.get_planets().values()])
+        return np.any([[self.ranges[p1.get_id()][p2.get_id()] < (civ1.tech / 10) for p1 in civ1.get_planets().values()] for p2 in civ2.get_planets().values()])
     
     def civs_cooperate(self, civ1, civ2):
         ''' interact_civs() helper function. Boosts involved civs' tech and culture based on COOPERATION_BOOST constant, and is used civs decide to cooperate.
@@ -236,11 +237,16 @@ class Model():
 
         # amt_to_trade is the net change in resources for civ1
         # Positive values mean civ1 gains that resource, negative means civ1 loses
-        amt_to_trade = flow_from_civ2_to_civ1 - flow_from_civ1_to_civ2
+        amt_to_trade = Counter(flow_from_civ2_to_civ1)
+        amt_to_trade.subtract(flow_from_civ1_to_civ2)
+        civ1_new_resources = Counter(civ1.resources)
+        civ1_new_resources.update(amt_to_trade)
+        civ2_new_resources = Counter(civ2.resources)
+        civ2_new_resources.subtract(amt_to_trade)
 
         # Exchanging resources
-        civ1.resources = dict(Counter(civ1.resources) + amt_to_trade)
-        civ2.resources = dict(Counter(civ2.resources) - amt_to_trade)
+        civ1.resources = dict(civ1_new_resources)
+        civ2.resources = dict(civ2_new_resources)
         # Storing traded values in case of removal later; values stored are positive if received from that civ_id, and negative if given to that civ_id.
         civ1.traded_resources[civ2.get_id()] = amt_to_trade
         civ2.traded_resources[civ1.get_id()] = -amt_to_trade
@@ -257,7 +263,8 @@ class Model():
             print(f"\tCiv {civ2.get_id()} gets a tech boost from trade with Civ {civ1.get_id()}.")
             civ2.tech += TRADE_TECH_BOOST
 
-    def interact_civs2(self, t, active_civs):
+    # Unstable attempt at new logic. Not called anywhere. Disregard.
+    def interact_civs(self, t, active_civs):
         ''' run_simulation() helper function and the civ agent decision-making hub. Runs actions for each living civ during turn t.
         Inputs:
             - t: Turn counter. Used for civ.check_if_dead() in civs_war() helper function.
@@ -274,14 +281,21 @@ class Model():
             if not actor.get_alive():
                 continue
             reachable_civs = [civ for civ in active_civs if not (civ is actor) and self.can_interact(actor, civ)]
-            war_targets = [civ for civ in reachable_civs if actor.is_desparate or actor.relations[civ.get_id()] != "Peace"]
-            coop_targets = [civ for civ in reachable_civs if actor.relations[civ.get_id()] != "War"]
-            coop_target = choice(coop_targets)
-            trade_target = list(dict(sorted(
+
+            # war_targets = [civ for civ in reachable_civs if actor.is_desparate or actor.relations[civ.get_id()] != "Peace"]
+            # coop_targets = [civ for civ in reachable_civs if actor.relations[civ.get_id()] != "War"]
+            war_targets = reachable_civs
+            coop_targets = reachable_civs
+
+            if coop_targets:
+                coop_target = choice(coop_targets)
+            trade_targets = list(dict(sorted(
                             {civ: (1 - (0 if max(actor.get_culture(), civ.get_culture()) == 0 else abs(actor.get_culture() - civ.get_culture()) / max(actor.get_culture(), civ.get_culture())) + civ.get_friendliness()) 
                              for civ in coop_targets 
                              if (np.any(np.where((0 < (np.array(list(map(int, civ.get_surplus().values()))) - np.array(list(map(int, actor.get_deficit().values()))))))))
-                             }.items(), key= lambda item: item[1], reverse= True)).keys())[0]
+                             }.items(), key= lambda item: item[1], reverse= True)).keys())
+            if trade_targets:
+                trade_target = trade_targets[0]
             # Sorts a dictionary of war probability values by highest to lowest, w/ target IDs as keys.
             war_scores = dict(sorted(
                             {target.get_id(): 
@@ -301,50 +315,48 @@ class Model():
                     war_target_score = war_positives.index(True)
                     # Using list_civs in order to make use of the target's ID.
                     war_target = self.civ_ids[list(war_scores.keys())[war_target_score]]
-                    interaction_details = {"civ1": actor, "civ2": war_target, "type": "war", "attacker": actor, "defender": war_target}
                     actor.war_initiations_this_turn += 1
                     # Determining closest planet they own to attack.
                     planet_targets = np.array([[(target, self.ranges[target][origin]) for target in war_target.get_planet_ids()] for origin in actor.get_planet_ids()])
-                    planet_target = np.array(self.list_planets)[int([planet_targets[np.argmin(planet_targets[:,:,1]), 0, 0]][0])]
+                    planet_target = self.list_planets[int([planet_targets[0,0,0]][0])] if planet_targets.shape[0] == 1 else self.list_planets[int(planet_targets[np.argmin(planet_targets, axis= 0)[0,1], np.argmin(planet_targets, axis= 1)[0,0], 0])]
                     original_owner_civ = planet_target.get_civ() if planet_target else None
                     self.civs_war(actor, war_target, t, planet_target)
                     print(f"\tDesperation War: Civ {actor.get_id()} vs Civ {war_target.get_id()} (Defender). Target: P-{planet_target.get_id() if planet_target else 'None'}")
-                    interactions.append(interaction_details)
+                    interactions.append({"civ1": actor, "civ2": war_target, "type": "war", "attacker": actor, "defender": war_target})
                     civ_interaction_counts[actor.get_id()]['wars_participated'] += 1
                     civ_interaction_counts[war_target.get_id()]['wars_participated'] += 1
                     if planet_target and planet_target.get_civ() == actor and original_owner_civ == war_target:
                         conquest_events.append({"planet_id": planet_target.get_id(), 
                                                 "new_owner_civ_id": actor.get_id(), 
                                                 "old_owner_civ_id": war_target.get_id() if original_owner_civ else None})
-            else:
+            elif coop_targets:
                 # Cooperate w/ a random cooperative, in-range civ.
                 self.civs_cooperate(actor, coop_target)
                 print(f"\tCooperation: Civilizations {actor.get_id()} and {coop_target.get_id()} are cooperating.")
-                interaction_details = {"civ1": actor, "civ2": coop_target, "type": "cooperation"}
-                interactions.append(interaction_details)
+                interactions.append({"civ1": actor, "civ2": coop_target, "type": "cooperation"})
             # 2) Seek trade.
-            self.civs_trade(actor, trade_target)
-            print(f"\tTrade: Civilizations {actor.get_id()} and {trade_target.get_id()} are trading.")
-            interaction_details = {"civ1": actor, "civ2": coop_target, "type": "trade"}
-            interactions.append(interaction_details)
+            if trade_targets:
+                self.civs_trade(actor, trade_target)
+                print(f"\tTrade: Civilizations {actor.get_id()} and {trade_target.get_id()} are trading.")
+                civ_interaction_counts[actor.get_id()]['trades'] += 1
+                civ_interaction_counts[trade_target.get_id()]['trades'] += 1
+                interactions.append({"civ1": actor, "civ2": coop_target, "type": "trade"})
             # 3) Seek cooperation if desparate, or war if not desparate.
-            if actor.is_desparate:
+            if actor.is_desparate and coop_targets:
                 self.civs_cooperate(actor, coop_target)
                 print(f"\tCooperation: Civilizations {actor.get_id()} and {coop_target.get_id()} are cooperating.")
-                interaction_details = {"civ1": actor, "civ2": coop_target, "type": "cooperation"}
-                interactions.append(interaction_details)
+                interactions.append({"civ1": actor, "civ2": coop_target, "type": "cooperation"})
             else:
                 if to_war:
                     war_target_score = war_positives.index(True)
                     war_target = self.civ_ids[list(war_scores.keys())[war_target_score]]
-                    interaction_details = {"civ1": actor, "civ2": war_target, "type": "war", "attacker": actor, "defender": war_target}
                     actor.war_initiations_this_turn += 1
                     planet_targets = np.array([[(target, self.ranges[target][origin]) for target in war_target.get_planet_ids()] for origin in actor.get_planet_ids()])
-                    planet_target = self.list_planets[int([planet_targets[0,0,0]][0])] if planet_targets.shape[0] == 1 else self.list_planets[int([planet_targets[np.argmin(planet_targets, axis= 2)[0], np.argmin(planet_targets, axis= 2)[1], 0]][0])]
+                    planet_target = self.list_planets[int([planet_targets[0,0,0]][0])] if planet_targets.shape[0] == 1 else self.list_planets[int(planet_targets[np.argmin(planet_targets, axis= 0)[0,1], np.argmin(planet_targets, axis= 1)[0,0], 0])]
                     original_owner_civ = planet_target.get_civ()
                     self.civs_war(actor, war_target, t, planet_target)
                     print(f"\tWarScore War: Civ {actor.get_id()} vs Civ {war_target.get_id()} (Defender). Target: P-{planet_target.get_id() if planet_target else 'None'}")
-                    interactions.append(interaction_details)
+                    interactions.append({"civ1": actor, "civ2": war_target, "type": "war", "attacker": actor, "defender": war_target})
                     civ_interaction_counts[actor.get_id()]['wars_participated'] += 1
                     civ_interaction_counts[war_target.get_id()]['wars_participated'] += 1
                     if planet_target and planet_target.get_civ() == actor and original_owner_civ == war_target:
@@ -353,7 +365,7 @@ class Model():
                                                 "old_owner_civ_id": war_target.get_id() if original_owner_civ else None})
         return interactions, conquest_events, civ_interaction_counts
 
-    def interact_civs(self, t, active_civs):
+    def interact_civs2(self, t, active_civs):
         ''' run_simulation() helper function and the civ agent decision-making hub. Runs actions for each living civ during turn t.
         Inputs:
             - t: Turn counter. Used for civ.check_if_dead() in civs_war() helper function.
@@ -575,6 +587,7 @@ class Model():
                     # Collect data for the turn of victory, interactions for this turn haven't happened yet.
                     self._collect_historical_data(t, [], {}, is_final_turn=True, final_message=message) 
                     self.generate_all_plots()
+                    self.end_type = "Culture"
                     return # End simulation due to culture victory.
             # 2) Civ Interactions:
             active_civs_for_interaction = [civ for civ in self.list_civs if civ.get_alive()]
@@ -584,6 +597,7 @@ class Model():
                 self._collect_historical_data(t, [], {}, is_final_turn=True, final_message=message)
                 yield message, [], [] 
                 self.generate_all_plots()
+                self.end_type = "Stalemate"
                 return
             
             for civ_obj in active_civs_for_interaction: # Use the snapshot
@@ -603,6 +617,7 @@ class Model():
                 self._collect_historical_data(t, interactions, civ_interaction_counts, is_final_turn=True, final_message=message) # Collect final data
                 yield message, [], []
                 self.generate_all_plots()
+                self.end_type = "Military"
                 return
             
             for civ in current_alive_civs: 
@@ -613,6 +628,7 @@ class Model():
                     self._collect_historical_data(t, interactions, civ_interaction_counts, is_final_turn=True, final_message=message)
                     yield message, [], []
                     self.generate_all_plots()
+                    self.end_type = "Culture"
                     return
 
             if not current_alive_civs:
@@ -622,6 +638,7 @@ class Model():
                 yield message, [], []
                 self.generate_sim_log()
                 self.generate_all_plots()
+                self.end_type = "Stalemate"
                 return
 
     def _collect_historical_data(self, turn, interactions, civ_interaction_counts_from_interact, is_final_turn=False, final_message=None):
@@ -669,6 +686,7 @@ class Model():
                     'num_trade_partners': num_trade_partners,
                     'is_at_war': is_at_war_this_turn,
                     'desperation': civ.is_desparate,
+                    'desperation_value': civ.desperation,
                     'planets_owned': len(civ.get_planets()),
                     'total_demand_food': demand.get('food', 0),
                     'total_demand_energy': demand.get('energy', 0),

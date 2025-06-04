@@ -3,6 +3,9 @@
 ##### DEPENDENCIES #####
 from model import Model, log_to_plots
 from visualize import visualize_simulation
+from civ import Civ
+from planet import Planet
+from matplotlib.pyplot import bar, show
 
 
 
@@ -11,38 +14,34 @@ if __name__ == "__main__":
     # Create a simulation model - provided parameters are user-adjustable.
     ''' Scenarios include:
     - "Friendzone": All civs start at maximum friendliness.
-    - "Thunderdom": All civs start at minimum friendliness.
+    - "Thunderdome": All civs start at minimum friendliness.
     - "Juggernaut": 1 civ starts at minimum friendliness w/ an additional 500 resources in each category.
     - "Wolf": 1 civ starts at minimum friendliness, and the rest start at maximum friendliness.
     Scenarios are not case-sensitive. Any other value will provide a random simulation outside these scenarios.
     '''
-    simulation_model = Model(num_planets= 15, grid_height= 30, grid_width= 30, scenario= "")
+    ''' Default Run Args:
+    simulation_model = Model(num_planets= 15, grid_height= 30, grid_width= 30, scenario= "Thunderdome")
     # Start the visualization
     visualize_simulation(simulation_model)
     # Store a .txt log of the simulation to convert to plots when needed.
     simulation_model.generate_sim_log()
-    # log_to_plots("output/logs/Civ_Sim_log_2025-06-04_09-43-24AM.txt") # Will work w/ either raw file name (if in output/logs), or relative path as shown here.
+    # log_to_plots("output/logs/name_of_the_log_file") # Will work w/ either raw file name (if in output/logs), or relative path as shown here.
+    '''
+    num_runs = 100
+    parameters = (15, 30, 30, "")
+    sim_list = [Model(*parameters) for i in range(num_runs)]
+    for i in range(100):
+        Civ.id_iter = 0
+        Planet.id_iter = 0
+        for gen in sim_list[i].run_simulation():
+            pass
+    ends = [sim.end_type for sim in sim_list]
+    counts = [ends.count("Culture"), ends.count("Military"), ends.count("Stalemate")]
+    bar(["Culture", "Military", "Stalemate"], counts)
+    show()
 
 
 
 ''' KNOWN BUGS:
 - simulation_animation.gif shows that civ colors change between turns.
-'''
-
-''' TO-DO:
-- Fix Trade:
-    - Restric Trade Conditions.
-    - Remove trades when traders die.
-- Set up data collection for multiple simulations run:
-    - init.py functions.
-    - summative data collection.
-
-- Convert Printed Results to Plots:
-    - Print Sim Results:
-        - Replace message yields/prints as file appending?
-    - Write interpreter methods.
-- Fix plot.show().
-
-- Optimize sim step count.
-- Write more tests.
 '''

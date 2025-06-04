@@ -9,7 +9,7 @@ from collections import Counter
 
 
 ##### CONSTANTS #####
-MAX_CULTURE = 100   # Amount of culture required for a culture victory.
+MAX_CULTURE = 200   # Amount of culture required for a culture victory.
 DESPERATION_POINT = 0.6         # Value at which a civilization is considered "desparate", and will prioritize war over trade.
 # Attribute Update Flow Variables
 beta_P =    0.5       # Tech growth rate from population.
@@ -27,8 +27,8 @@ f_c =       1.0       # Food consumption per capita (adjust if necessary)
 m_c =       0.3       # Mineral consumption per capita.
 alpha_T =   0.1       # Tech influence on energy demand.
 alpha_M =   0.1       # Mineral influence on energy demand.
-epsilon_R = 0.5       # Resource pressure's influence on desperation.
-epsilon_P = 0.5       # Population pressure's influence on desparation. 
+epsilon_R = 1.0       # Resource pressure's influence on desperation.
+epsilon_P = 1.0       # Population pressure's influence on desparation. 
 
 
 
@@ -38,8 +38,10 @@ class Civ:
     instances = [] # Added to track all civ instances
 
     def __init__(self, num_civs, tech= 0, culture= 0, military= 0, friendliness= random(), resources= {"energy": 0, "food": 0, "minerals": 0}):
+        base_resources = Counter({"energy": 0, "food": 0, "minerals": 0})
+        base_resources.update(Counter(resources))
         # Model Controllers:
-        self.civ_id = Civ.id_iter                   # The civilzation ID for unique identification and iteration.
+        self.civ_id = Civ.id_iter % num_civs        # The civilzation ID for unique identification and iteration.
         self.num_planets = 0                        # Positive integer value. civ loses at self.num_planets == 0.
         self.alive = True                           # Set to False when len(self.planets) == 0.
         self.has_won_culture_victory = False        # Added flag for clean stop.
@@ -51,7 +53,7 @@ class Civ:
         self.culture = max(0, culture)              # The attribute that determines how close a civ is to a culture victory.
         self.military = max(0, military)            # The attribute that determines a civ's odds of success in war.
         self.tech = max(0, tech)                    # The attribute that determines how far a civ can travel.
-        self.resources = dict(Counter({"energy": 0, "food": 0, "minerals": 0}) + Counter(resources))
+        self.resources = base_resources
         self.demand = {}                            # Needs for resources (energy, food, minerals). Initialized as dict.
         self.surplus = {}                           # Excess of resources. Initialized as dict.
         self.deficit = {}                           # Deficit of resources. Initialized as dict.
@@ -88,7 +90,8 @@ class Civ:
         # Preparing flow variables.
         food_per_capita = self.resources["food"] / max(self.population, 1e-3)
         self.max_growth_rate = 0.01 + 0.005 * np.tanh(self.tech / 100)
-        growth_rate = self.max_growth_rate * min(1.0, food_per_capita)
+        # growth_rate = self.max_growth_rate * min(1.0, food_per_capita)
+        growth_rate = min(1.0, food_per_capita)
         # Updating attributes
         self.population += self.population * growth_rate
         self.culture += delta_P * self.population + delta_T * self.tech + delta_R * sum(self.resources.values())
@@ -100,7 +103,8 @@ class Civ:
         self.friendliness = min(1.0, friendliness_after_victories + cultural_pacification)  # Caps friendliness at 1.0.
         # Demand, Surplus and Deficit Update
         self.demand = {"energy": e_c * self.population + alpha_T * self.tech + alpha_M * self.military, "food": f_c * self.population, "minerals": m_c * self.military}
-        flux = Counter(self.resources) - Counter(self.demand)
+        flux = Counter(self.resources)
+        flux.subtract(Counter(self.demand))
         self.surplus = dict((k, v if 0 < v else 0) for k, v in flux.items())
         self.deficit = dict((k, abs(v) if v < 0 else 0) for k, v in flux.items())
         # Calculate population pressure, avoiding division by zero
@@ -125,11 +129,9 @@ class Civ:
         # Calculate deficit pressure for overall desperation calculation
         sum_demand_val = np.sum(list(self.get_demand().values()))
         sum_deficit_val = np.sum(list(self.get_deficit().values()))
-        deficit_pressure_for_desperation = 0.0
-        if sum_demand_val > 0:
-            deficit_pressure_for_desperation = sum_deficit_val / sum_demand_val
+        deficit_pressure_for_desperation = deficit_pressure_for_desperation = sum_deficit_val / sum_demand_val if sum_demand_val > 0 else 0.0
         self.resource_pressure_component = deficit_pressure_for_desperation # Store Rp_i
-        self.desperation = epsilon_R * self.population_pressure + epsilon_P * deficit_pressure_for_desperation
+        self.desperation = float(epsilon_R * self.population_pressure + epsilon_P * deficit_pressure_for_desperation)
         self.is_desparate = DESPERATION_POINT < self.desperation
         # Checking Culture Victory Condition
         if not self.has_won_culture_victory and self.culture >= MAX_CULTURE:
@@ -159,8 +161,12 @@ class Civ:
         # If resources have been traded,..
         if(self.traded_resources[civ2.get_id()] != {"energy": 0, "food": 0, "minerals": 0}):
             # Return traded resources, and...
-            self.resources = dict(Counter(self.resources) - Counter(self.traded_resources[civ2.get_id()]))
-            civ2.resources = dict(Counter(civ2.resources) + Counter(self.traded_resources[self.get_id()]))
+            traded_amount = Counter(self.resources)
+            traded_amount.subtract(Counter(self.traded_resources[civ2.get_id()]))
+            self.resources = dict(traded_amount)
+            new_civ2_resources = Counter(civ2.resources)
+            new_civ2_resources.update(Counter(self.traded_resources[self.get_id()]))
+            civ2.resources = dict(new_civ2_resources)
             # Set traded resource values to 0.
             self.traded_resources[civ2.get_id()] = {"energy": 0, "food": 0, "minerals": 0}
             civ2.traded_resources[self.get_id()] = {"energy": 0, "food": 0, "minerals": 0}
@@ -247,3 +253,6 @@ class Civ:
     
     def get_demand(self):
         return self.demand      # Returns a dictionary w/ keys "energy", "food", and "minerals".
+    
+    def get_desperation(self):
+        return self.desperation

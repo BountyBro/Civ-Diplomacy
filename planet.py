@@ -18,9 +18,9 @@ POPCAP_MIN, POPCAP_MAX =        1000, 5000
 class Planet:
     id_iter = 0
 
-    def __init__(self, pos_x, pos_y):
+    def __init__(self, num_planets, pos_x, pos_y):
         # Model Controllers:
-        self.id = Planet.id_iter                                        # Planet ID for planet list index and unique identification
+        self.id = Planet.id_iter % num_planets                          # Planet ID for planet list index and unique identification
         self.civ = None                                                 # The civilization that owns this planet.
         self.pos_x = pos_x                                              # The x-coordinate of the planet.
         self.pos_y = pos_y                                              # The y-coordinate of the planet.
@@ -66,7 +66,9 @@ class Planet:
             self.civ.num_planets -= 1 # Decrement num_planets AFTER using it for population calculation
             self.civ.population_cap -= self.population_cap
             self.civ.population -= population_to_remove
-            self.civ.resources = dict(Counter(self.civ.resources) - Counter(self.resources))
+            new_resource_count = Counter(self.civ.resources)
+            new_resource_count.subtract(Counter(self.resources))
+            self.civ.resources = dict(new_resource_count)
             
             # Check if civ should be marked dead is handled by civ.check_if_dead() in model.py
             # which is called after a planet is conquered.
