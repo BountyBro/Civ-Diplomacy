@@ -813,7 +813,9 @@ def log_to_plots(file_name):
         Inputs:
             - None. Uses a dummy 'Model' object to write in historical_data.
         '''
-        if not os.path_exists(file_name):
+        file_name = "".join("output/logs", file_name) if not file_name.startswith("output/logs") else file_name
+        file_name = os.path.join(os.path.dirname(__file__), file_name)
+        if not os.path.exists(file_name):
             raise FileExistsError(f"\"{file_name}\" does not exist.")
         data = eval(open(file_name).read())
         if not data:

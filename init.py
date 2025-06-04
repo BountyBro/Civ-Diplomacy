@@ -1,7 +1,7 @@
 ''' Main file for Civ-Diplomacy project. Calls functions to run simulations and visualize. Written by Luis Sandoval, Noah Brestel, and Daniil Marozau.
 '''
 ##### DEPENDENCIES #####
-from model import Model
+from model import Model, log_to_plots
 from visualize import visualize_simulation
 
 
@@ -21,6 +21,7 @@ if __name__ == "__main__":
     visualize_simulation(simulation_model)
     # Store a .txt log of the simulation to convert to plots when needed.
     simulation_model.generate_sim_log()
+    # log_to_plots("output/logs/Civ_Sim_log_2025-06-04_09-43-24AM.txt") # Will work w/ either raw file name (if in output/logs), or relative path as shown here.
 
 
 
