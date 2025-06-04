@@ -11,6 +11,7 @@ import os                                   # Added for directory creation.
 import plotting                             # Added for plotting functions.
 from collections import Counter             # Added for adaptable resource arithmetic operations.
 from random import sample, random, choice   # Used in planet initialization, probabilistic operations.
+from datetime import datetime
 
 
 
@@ -39,8 +40,9 @@ TRADE_TECH_BOOST = 0.5                      # Tech increase when a civ trades w/
 AGGRESSION_FRIENDLINESS_THRESHOLD = 0.10    # Friendliness below this can trigger aggression (was 0.15).
 MAX_TURNS_SIM = 200                         # Defining a max turn for the simulation run, used for save_count in animation.
 PLANET_CONQUEST_CHANCE_ON_WIN = 0.6         # Chance to conquer a planet after winning a battle for it.
-# PLOT TOGGLES:      True = ON, False = OFF
-MASTER_PLOT_TOGGLE = False                  # Overrides all other plot toggles.
+# Analysis TOGGLES:  True = ON, False = OFF
+LOG_TOGGLE = True                           # Boolean to toggle .txt log of simulation data.
+MASTER_PLOT_TOGGLE = False                   # Overrides all other plot toggles.
 PLOT_H1 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between desparation and war to output/plots.
 PLOT_H2 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between military power and war to output/plots.
 PLOT_H3 = True                              # Boolean to toggle if run_simulation should write a plot showing the correlation between friendliness and culture to output/plots.
@@ -618,6 +620,7 @@ class Model():
                 print(message)
                 self._collect_historical_data(t, interactions, civ_interaction_counts, is_final_turn=True, final_message=message)
                 yield message, [], []
+                self.generate_sim_log()
                 self.generate_all_plots()
                 return
 
@@ -739,6 +742,33 @@ class Model():
 
         self.historical_data.append(snapshot)
 
+    def generate_sim_log(self):
+        ''' Writes a .txt file to the current directory, storing all historical_data from a simulation.
+        Inputs:
+            - None. Uses self.historical_data. Can be toggled by LOG_TOGGLE in this file's constants table.
+        Outputs:
+            - None. Writes a .txt file in the same directory that stores historical data.
+        '''
+        if not LOG_TOGGLE:
+            return
+        if not self.historical_data:
+            print("No historical data to plot.")
+            return
+        time_of_creation = datetime.now().strftime("%Y-%m-%d_%I-%M-%S%p")
+        ideal_file_name = f"output/logs/Civ_Sim_log_{time_of_creation}.txt"
+        # In case of multiple sim_logs generated in the same second,..
+        if os.path.exists(ideal_file_name):
+            # Number this new entry,..
+            counter = 2
+            while os.path.exists(ideal_file_name):
+                # And go until that number creates a fresh entry.
+                ideal_file_name = f"output/logs/Civ_Sim_log_{time_of_creation}_{counter}.txt"
+                counter += 1
+        final_file_name = os.path.join(os.path.dirname(__file__), ideal_file_name)
+        with open(final_file_name, "at") as log:
+            log.write(str(self.historical_data))
+        print(f"Log \"{ideal_file_name}\" has been written!")
+
     def generate_all_plots(self):
         '''
         Inputs:
@@ -776,4 +806,40 @@ class Model():
         # H6: Civilization Lifespans and Victory Conditions
         if PLOT_H6:
             plotting.generate_h6_plots(self.historical_data, save_path_prefix=os.path.join(output_dir, "h6_"))
+        print("Plot generation complete.")
+
+def log_to_plots(file_name):
+        ''' Evaluates a civ_sim_log.txt file to write plots.
+        Inputs:
+            - None. Uses a dummy 'Model' object to write in historical_data.
+        '''
+        if not os.path_exists(file_name):
+            raise FileExistsError(f"\"{file_name}\" does not exist.")
+        data = eval(open(file_name).read())
+        if not data:
+            print("No historical data to plot.")
+            return
+        output_dir = "output/plots"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        print(f"\nGenerating plots in {output_dir}...")
+        # H1: Resource/Desperation Dynamics Leading to Conflict/Trade
+        if PLOT_H1:
+            plotting.generate_h1_plots(data, save_path_prefix=os.path.join(output_dir, "h1_"))
+        # H2: Military Buildup and Conflict Escalation
+        if PLOT_H2:
+            plotting.generate_h2_plots(data, save_path_prefix=os.path.join(output_dir, "h2_"))
+        # H3: Friendliness, Cooperation, and Cultural Exchange
+        if PLOT_H3:
+            plotting.generate_h3_plots(data, save_path_prefix=os.path.join(output_dir, "h3_"))
+        # H4: Cultural Similarity and Interaction Choice (Network Graph for last turn)
+        # The plotting function takes snapshot_turn=-1 to use the last turn by default.
+        if PLOT_H4:
+            plotting.generate_h4_plots(data, save_path_prefix=os.path.join(output_dir, "h4_"))
+        # H5: Tech Advancement, Resource Needs, and Trade/Conflict Propensity (Scatter plots)
+        if PLOT_H5:
+            plotting.generate_h5_plots(data, save_path_prefix=os.path.join(output_dir, "h5_"))
+        # H6: Civilization Lifespans and Victory Conditions
+        if PLOT_H6:
+            plotting.generate_h6_plots(data, save_path_prefix=os.path.join(output_dir, "h6_"))
         print("Plot generation complete.")

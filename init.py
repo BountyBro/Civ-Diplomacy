@@ -19,6 +19,8 @@ if __name__ == "__main__":
     simulation_model = Model(num_planets= 15, grid_height= 30, grid_width= 30, scenario= "")
     # Start the visualization
     visualize_simulation(simulation_model)
+    # Store a .txt log of the simulation to convert to plots when needed.
+    simulation_model.generate_sim_log()
 
 
 
