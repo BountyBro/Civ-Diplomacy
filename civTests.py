@@ -8,10 +8,10 @@ How to use:
 - Run this file as main.
 '''
 ##### DEPENDENCIES #####
-import unittest as ut   # Testing framework module.
 from civ import Civ
 from model import Model
 from planet import Planet
+import unittest as ut   # Testing framework module.
 
 
 

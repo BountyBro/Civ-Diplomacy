@@ -23,6 +23,23 @@ if __name__ == "__main__":
 
 
 ''' KNOWN BUGS:
-- plot.show() is not working.
 - simulation_animation.gif shows that civ colors change between turns.
+'''
+
+''' TO-DO:
+- Fix Trade:
+    - Restric Trade Conditions.
+    - Remove trades when traders die.
+- Set up data collection for multiple simulations run:
+    - init.py functions.
+    - summative data collection.
+
+- Convert Printed Results to Plots:
+    - Print Sim Results:
+        - Replace message yields/prints as file appending?
+    - Write interpreter methods.
+- Fix plot.show().
+
+- Optimize sim step count.
+- Write more tests.
 '''

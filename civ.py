@@ -37,7 +37,7 @@ class Civ:
     id_iter = 0
     instances = [] # Added to track all civ instances
 
-    def __init__(self, tech= 0, culture= 0, military= 0, friendliness= random(), resources= {"energy": 0, "food": 0, "minerals": 0}):
+    def __init__(self, num_civs, tech= 0, culture= 0, military= 0, friendliness= random(), resources= {"energy": 0, "food": 0, "minerals": 0}):
         # Model Controllers:
         self.civ_id = Civ.id_iter                   # The civilzation ID for unique identification and iteration.
         self.num_planets = 0                        # Positive integer value. civ loses at self.num_planets == 0.
@@ -52,7 +52,6 @@ class Civ:
         self.military = max(0, military)            # The attribute that determines a civ's odds of success in war.
         self.tech = max(0, tech)                    # The attribute that determines how far a civ can travel.
         self.resources = dict(Counter({"energy": 0, "food": 0, "minerals": 0}) + Counter(resources))
-                                                    # 3-pair dictionary containing keys "energy", "food", and "minerals", w/ integer values.
         self.demand = {}                            # Needs for resources (energy, food, minerals). Initialized as dict.
         self.surplus = {}                           # Excess of resources. Initialized as dict.
         self.deficit = {}                           # Deficit of resources. Initialized as dict.
@@ -62,8 +61,8 @@ class Civ:
         self.desperation = 0.0                      # Determinant to prioritize war or trade.   
         self.is_desparate = False                   # Checks desparation barrier.      
         self.resource_pressure_component = 0.0      # Rp_i for WarScore: sum_k Deficit_ik / sum_k Demand_ik
-        self.traded_resources = []                  # list of 1-pair, civ:resources dictionaries used to undo trades when a civ dies.
-        
+        self.traded_resources = [{"energy": 0, "food": 0, "minerals": 0} for i in range(num_civs)]
+        self.relations = ["Neutral" for i in range(num_civs)]   # 3 States: "Neutral" can war or trade; "Peace" can trade, but only war if desparate; "War" cannot trade.
         # Attributes for historical data plotting
         self.victories = 0
         self.population_pressure = 0.0
@@ -79,10 +78,10 @@ class Civ:
         '''
         self.war_initiations_this_turn = 0
 
-    def update_attributes(self, resources_step= {"energy": 0, "food": 0, "minerals": 0}):
+    def update_attributes(self):
         '''
         Inputs:
-            - resource_step: Optional argument in case resources are modified outside trade or planetary assignment.
+            - None. All flow variables are calculated dynamically and rely on the calling 'Civ' agent's existing attributes.
         Outputs:
             - None. Updates calling 'Civ' agent's attributes, and potentially prints in case of cultural victory during update.
         '''
@@ -92,7 +91,6 @@ class Civ:
         growth_rate = self.max_growth_rate * min(1.0, food_per_capita)
         # Updating attributes
         self.population += self.population * growth_rate
-        self.resources = dict(Counter(self.resources) + Counter(resources_step))
         self.culture += delta_P * self.population + delta_T * self.tech + delta_R * sum(self.resources.values())
         self.military = sigma_P * self.population + sigma_T * self.tech + sigma_M * self.resources["minerals"]
         self.tech += beta_P * np.log(self.population) + beta_E * (max(self.resources["energy"], 1e-3) / self.population) # max() to avoid ZeroDivisionError.
@@ -138,19 +136,49 @@ class Civ:
             self.has_won_culture_victory = True
             print(f"\tCivilization {self.civ_id} has achieved a culture victory!")
 
-    def check_if_dead(self, t):
+    def change_relations(self, civ2, new_relation):
+        ''' Changes relations between calling 'Civ' agent and provided civ2 agent.
+        Inputs:
+            - civ2: The civ whose relations with the calling civ are being changed.
+            - new_relation: The string 
+        Outputs:
+            - None. Modifies agent attributes.
+        '''
+        if not (new_relation in ["Neutral", "Peace", "War"]):
+            raise ValueError(f"change_relations() called w/ \"{new_relation}\" relation, which isn't \"Neutral\", \"War\", or \"Peace\".")
+        self.relations[civ2.get_id()] = new_relation
+        civ2.relations[self.get_id()] = new_relation
+
+    def break_trade(self, civ2):
+        ''' Resets traded_values between calling 'Civ' agent and provided 'Civ' agent.
+        Inputs:
+            - civ2: Another civ agent that has traded w/ the calling agent.
+        Outputs:
+            - None. Modifies agent attributes.
+        '''
+        # If resources have been traded,..
+        if(self.traded_resources[civ2.get_id()] != {"energy": 0, "food": 0, "minerals": 0}):
+            # Return traded resources, and...
+            self.resources = dict(Counter(self.resources) - Counter(self.traded_resources[civ2.get_id()]))
+            civ2.resources = dict(Counter(civ2.resources) + Counter(self.traded_resources[self.get_id()]))
+            # Set traded resource values to 0.
+            self.traded_resources[civ2.get_id()] = {"energy": 0, "food": 0, "minerals": 0}
+            civ2.traded_resources[self.get_id()] = {"energy": 0, "food": 0, "minerals": 0}
+
+    def check_if_dead(self, t, civ_list):
         '''
         Inputs:
             - t: Turn timestep used to establish chronological order for visualization purposes.
+            - civ_list: Used by kill_civ() to break trades. "Dead men seal no deals".
         Outputs:
             - None. Calls kill_civ on the calling 'Civ' agent if it has no planets.
         '''
         if self.num_planets == 0:
-            self.kill_civ(t)
+            self.kill_civ(t, civ_list)
             return True
         return False
 
-    def kill_civ(self, t):
+    def kill_civ(self, t, civ_list):
         '''
         Inputs:
             - t: Turn timestep used to establish chronological order for visualization purposes.
@@ -160,6 +188,8 @@ class Civ:
         self.alive = False
         for planet in self.planets.values():
             planet.remove_civ()
+        for civ in [civ for civ in civ_list if not (civ is self)]:
+            self.break_trade(civ)
         self.planets.clear()
         self.num_planets = 0.0
         self.population = 0.0

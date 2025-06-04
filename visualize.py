@@ -439,7 +439,7 @@ def visualize_simulation(model):
     ani = animation.FuncAnimation(fig, update, frames=simulation_frames_generator, init_func=init, blit=False, 
                                 interval=interval_ms, repeat=False, save_count=simulation_max_turns, cache_frame_data=False)
     ani.save('simulation_animation.gif', writer='pillow', fps=1000/interval_ms if interval_ms > 0 else 1)
-    #plt.show()
+    # plt.show()
 
 # TO-DO: Write plot fns based on our established metrics.
 
