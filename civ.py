@@ -37,7 +37,7 @@ class Civ:
     id_iter = 0
     instances = [] # Added to track all civ instances
 
-    def __init__(self, num_civs, tech= 0, culture= 0, military= 0, friendliness= random(), resources= {"energy": 0, "food": 0, "minerals": 0}):
+    def __init__(self, num_civs, tech= 0, culture= 0, military= 0, friendliness=None, resources= {"energy": 0, "food": 0, "minerals": 0}):
         base_resources = Counter({"energy": 0, "food": 0, "minerals": 0})
         base_resources.update(Counter(resources))
         # Model Controllers:
@@ -49,7 +49,12 @@ class Civ:
         Civ.id_iter += 1                            # Incrementing class ID counter.
         Civ.instances.append(self)                  # Added to track all civ instances
         # Attributes:
-        self.friendliness = max(0, friendliness)    # The friendliness of a civ. 
+        if friendliness is None:
+            self.friendliness = random()
+        else:
+            self.friendliness = friendliness
+        self.friendliness = max(0, self.friendliness)
+        print(f"Civ {self.civ_id} initialized with friendliness: {self.friendliness}")
         self.culture = max(0, culture)              # The attribute that determines how close a civ is to a culture victory.
         self.military = max(0, military)            # The attribute that determines a civ's odds of success in war.
         self.tech = max(0, tech)                    # The attribute that determines how far a civ can travel.

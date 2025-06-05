@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     # Default Run Args:
     # Create a simulation model - provided parameters are user-adjustable.
-    simulation_model = Model(num_planets= 15, grid_height= 30, grid_width= 30, scenario= "Thunderdome")
+    simulation_model = Model(num_planets= 15, grid_height= 30, grid_width= 30, scenario= "")
     # Start the visualization
     visualize_simulation(simulation_model)
     # Store a .txt log of the simulation to convert to plots when needed.
