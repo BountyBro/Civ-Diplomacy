@@ -129,7 +129,7 @@ def analyze_logs():
     if not df.empty:
         fig, axs = plt.subplots(1, 2)
         sns.scatterplot(data=df, x="tech", y="military", ax=axs[0]).set(title="H1: Tech vs Military Power")
-        sns.scatterplot(data=df, x="tech", y="war_initiations", ax=axs[1]).set(title="H1: Tech vs War Initiations")
+        bin_and_plot(df, "tech", "war_initiations", 10, "H1: Tech vs War Initiations", "Avg War Initiations")
         plt.tight_layout()
         plt.show()
 
@@ -167,7 +167,7 @@ def analyze_logs():
             palette="viridis",
             s=100
         )
-        plt.title("H6: Culture vs Trade Partners (Color: Friendliness)")
+        plt.title("H5: Culture vs Trade Partners (Color: Friendliness)")
         plt.xlabel("Initial Culture")
         plt.ylabel("Number of Trade Partners")
         plt.grid(True)
@@ -181,6 +181,7 @@ if __name__ == "__main__":
     print("Welcome to Civilization Diplomacy!")
     print("1. Run a single simulation (with visualization)")
     print("2. Run multiple simulations (with hypothesis analysis)")
+    print("3. Analyze Existing Logs Only")
     choice = input("Choose an option (1 or 2): ").strip()
 
     if choice == "1":
@@ -191,5 +192,7 @@ if __name__ == "__main__":
             run_multiple_simulations(num_runs)
         except ValueError:
             print("Invalid input. Please enter an integer.")
+    elif choice == "3":
+        analyze_logs()
     else:
         print("Invalid choice. Please enter 1 or 2.")
