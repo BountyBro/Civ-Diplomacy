@@ -762,7 +762,7 @@ class Model():
             # print("No historical data to plot.")
             return
         time_of_creation = datetime.now().strftime("%Y-%m-%d_%I-%M-%S%p")
-        ideal_file_name = f"output/logs/Civ_Sim_log_{time_of_creation}.txt"
+        ideal_file_name = f"output/logs/Civ_Sim_log_{time_of_creation}.json"
         # In case of multiple sim_logs generated in the same second,..
         if os.path.exists(ideal_file_name):
             # Number this new entry,..
@@ -816,39 +816,39 @@ class Model():
         # print("Plot generation complete.")
 
 def log_to_plots(file_name):
-        ''' Evaluates a civ_sim_log.txt file to write plots.
-        Inputs:
-            - None. Uses a dummy 'Model' object to write in historical_data.
-        '''
-        file_name = "".join("output/logs", file_name) if not file_name.startswith("output/logs") else file_name
-        file_name = os.path.join(os.path.dirname(__file__), file_name)
-        if not os.path.exists(file_name):
-            raise FileExistsError(f"\"{file_name}\" does not exist.")
-        data = eval(open(file_name).read())
-        if not data:
-            # print("No historical data to plot.")
-            return
-        output_dir = "output/plots"
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        # print(f"\nGenerating plots in {output_dir}...")
-        # H1: Resource/Desperation Dynamics Leading to Conflict/Trade
-        if PLOT_H1:
-            plotting.generate_h1_plots(data, save_path_prefix=os.path.join(output_dir, "h1_"))
-        # H2: Military Buildup and Conflict Escalation
-        if PLOT_H2:
-            plotting.generate_h2_plots(data, save_path_prefix=os.path.join(output_dir, "h2_"))
-        # H3: Friendliness, Cooperation, and Cultural Exchange
-        if PLOT_H3:
-            plotting.generate_h3_plots(data, save_path_prefix=os.path.join(output_dir, "h3_"))
-        # H4: Cultural Similarity and Interaction Choice (Network Graph for last turn)
-        # The plotting function takes snapshot_turn=-1 to use the last turn by default.
-        if PLOT_H4:
-            plotting.generate_h4_plots(data, save_path_prefix=os.path.join(output_dir, "h4_"))
-        # H5: Tech Advancement, Resource Needs, and Trade/Conflict Propensity (Scatter plots)
-        if PLOT_H5:
-            plotting.generate_h5_plots(data, save_path_prefix=os.path.join(output_dir, "h5_"))
-        # H6: Civilization Lifespans and Victory Conditions
-        if PLOT_H6:
-            plotting.generate_h6_plots(data, save_path_prefix=os.path.join(output_dir, "h6_"))
-        # print("Plot generation complete.")
+    ''' Evaluates a civ_sim_log.txt file to write plots.
+    Inputs:
+        - None. Uses a dummy 'Model' object to write in historical_data.
+    '''
+    file_name = "".join("output/logs", file_name) if not file_name.startswith("output/logs") else file_name
+    file_name = os.path.join(os.path.dirname(__file__), file_name)
+    if not os.path.exists(file_name):
+        raise FileExistsError(f"\"{file_name}\" does not exist.")
+    data = eval(open(file_name).read())
+    if not data:
+        # print("No historical data to plot.")
+        return
+    output_dir = "output/plots"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    # print(f"\nGenerating plots in {output_dir}...")
+    # H1: Resource/Desperation Dynamics Leading to Conflict/Trade
+    if PLOT_H1:
+        plotting.generate_h1_plots(data, save_path_prefix=os.path.join(output_dir, "h1_"))
+    # H2: Military Buildup and Conflict Escalation
+    if PLOT_H2:
+        plotting.generate_h2_plots(data, save_path_prefix=os.path.join(output_dir, "h2_"))
+    # H3: Friendliness, Cooperation, and Cultural Exchange
+    if PLOT_H3:
+        plotting.generate_h3_plots(data, save_path_prefix=os.path.join(output_dir, "h3_"))
+    # H4: Cultural Similarity and Interaction Choice (Network Graph for last turn)
+    # The plotting function takes snapshot_turn=-1 to use the last turn by default.
+    if PLOT_H4:
+        plotting.generate_h4_plots(data, save_path_prefix=os.path.join(output_dir, "h4_"))
+    # H5: Tech Advancement, Resource Needs, and Trade/Conflict Propensity (Scatter plots)
+    if PLOT_H5:
+        plotting.generate_h5_plots(data, save_path_prefix=os.path.join(output_dir, "h5_"))
+    # H6: Civilization Lifespans and Victory Conditions
+    if PLOT_H6:
+        plotting.generate_h6_plots(data, save_path_prefix=os.path.join(output_dir, "h6_"))
+    # print("Plot generation complete.")

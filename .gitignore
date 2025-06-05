@@ -137,3 +137,5 @@ simulation_animation.gif
 # Operating System files
 .DS_Store
 Thumbs.db 
+
+/output

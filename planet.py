@@ -10,7 +10,7 @@ from collections import Counter
 
 ##### CONSTANTS #####
 RESOURCE_MIN, RESOURCE_MAX =    100, 500
-POPCAP_MIN, POPCAP_MAX =        1000, 5000
+POPCAP_MIN, POPCAP_MAX =        1000, 3000
 
 
 
