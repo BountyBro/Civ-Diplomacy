@@ -39,7 +39,7 @@ def clear_folder(folder_path):
 def run_single_simulation():
     clear_folder("output/logs")
     clear_folder("output/plots")
-    simulation_model = Model(num_planets=15, grid_height=30, grid_width=30, scenario="Thunderdome")
+    simulation_model = Model(num_planets=15, grid_height=30, grid_width=30, scenario="Thunderdome", generate_plots_controller=True)
     visualize_simulation(simulation_model)
     simulation_model.generate_sim_log()
 
@@ -47,7 +47,7 @@ def run_multiple_simulations(num_runs):
     clear_folder("output/logs")
     clear_folder("output/plots")
     parameters = (15, 30, 30, "")
-    sim_list = [Model(*parameters) for _ in range(num_runs)]
+    sim_list = [Model(*parameters, generate_plots_controller=False) for _ in range(num_runs)]
     start = time()
 
     for i in range(num_runs):

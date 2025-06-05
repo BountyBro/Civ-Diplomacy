@@ -54,7 +54,7 @@ PLOT_H6 = True                              # Boolean to toggle if run_simulatio
 
 ##### CLASSES #####
 class Model():
-    def __init__(self, num_planets= 15, grid_height= 30, grid_width= 30, scenario= ""):
+    def __init__(self, num_planets= 15, grid_height= 30, grid_width= 30, scenario= "", generate_plots_controller=True):
         ''' Model class constructor that creates a numpy array for a grid, with lists for civ agents and planet agents assigned to the civ agents.
         Inputs:
         - num_planets:  The # of planets to be used. Each planet is assigned to 1 civ, such that every civ has 1 planet, and vice versa.
@@ -87,6 +87,7 @@ class Model():
         self.historical_data = []       # Added for plotting
         self.civ_ids = self.list_civs.copy()
         self.end_type = ""
+        self.generate_plots_controller = generate_plots_controller  # Boolean to control if plots should be generated at the end of the simulation.
         
         
 
@@ -785,7 +786,7 @@ class Model():
             - Writes plots tied to our V&V sources in output/plots.
         '''
         # If all plots are toggled off, skip plot writing process.
-        if not MASTER_PLOT_TOGGLE or (MASTER_PLOT_TOGGLE and not np.any([PLOT_H1, PLOT_H2, PLOT_H3, PLOT_H4, PLOT_H5, PLOT_H6])):
+        if not self.generate_plots_controller or (self.generate_plots_controller and not np.any([PLOT_H1, PLOT_H2, PLOT_H3, PLOT_H4, PLOT_H5, PLOT_H6])):
             return
         if not self.historical_data:
             # print("No historical data to plot.")
