@@ -12,7 +12,7 @@ import plotting                             # Added for plotting functions.
 from collections import Counter             # Added for adaptable resource arithmetic operations.
 from random import sample, random, choice   # Used in planet initialization, probabilistic operations.
 from datetime import datetime
-
+import json
 
 
 ##### CONSTANTS #####
@@ -74,7 +74,7 @@ class Model():
             case "thunderdome":
                 self.list_civs = [Civ(self.num_planets, friendliness= 0) for i in range(num_planets)]
             case "juggernaut":
-                self.list_civs = [Civ(self.num_planets) if i != 0 else Civ(self.num_planets, friendliness= 0, resources= {"energy": 500, "food": 500, "minerals": 500}) for i in range(num_planets)]
+                self.list_civs = [Civ(self.num_planets) if i != 0 else Civ(self.num_planets, friendliness=0, resources= {"energy": 500, "food": 500, "minerals": 500}) for i in range(num_planets)]
             case "wolf":
                 self.list_civs = [Civ(self.num_planets, friendliness= 1) if i != 0 else Civ(self.num_planets, friendliness= 0) for i in range(num_planets)]
             case _:
@@ -88,6 +88,7 @@ class Model():
         self.civ_ids = self.list_civs.copy()
         self.end_type = ""
         self.generate_plots_controller = generate_plots_controller  # Boolean to control if plots should be generated at the end of the simulation.
+        self.winner_id = None
         
         
 
@@ -603,6 +604,7 @@ class Model():
             if len(current_alive_civs) == 1:
                 winner_civ = current_alive_civs[0]
                 message = f"\tCivilization {winner_civ.get_id()} has won the simulation through military!"
+                self.winner_id = winner_civ.get_id() # Mark this civ as the winner
                 # print(message) 
                 self._collect_historical_data(t, interactions, civ_interaction_counts, is_final_turn=True, final_message=message) # Collect final data
                 yield message, [], []
@@ -613,6 +615,7 @@ class Model():
             for civ in current_alive_civs: 
                 if civ.has_won_culture_victory:
                     message = f"\tCivilization {civ.get_id()} has achieved a culture victory!"
+                    self.winner_id = civ.get_id() # Mark this civ as the winner
                     # print(message)
                     # Data for this turn was already collected, but we mark it as final for this civ's win
                     self._collect_historical_data(t, interactions, civ_interaction_counts, is_final_turn=True, final_message=message)
@@ -748,34 +751,48 @@ class Model():
         if is_final_turn and final_message:
             snapshot['final_message'] = final_message
 
-        self.historical_data.append(snapshot)
+        self.historical_data.append(snapshot)  # at the top of your file if not already present
+
 
     def generate_sim_log(self):
-        ''' Writes a .txt file to the current directory, storing all historical_data from a simulation.
-        Inputs:
-            - None. Uses self.historical_data. Can be toggled by LOG_TOGGLE in this file's constants table.
-        Outputs:
-            - None. Writes a .txt file in the same directory that stores historical data.
-        '''
-        if not LOG_TOGGLE:
+        ''' Writes a .json file storing all historical_data from a simulation. '''
+        if not LOG_TOGGLE or not self.historical_data:
             return
-        if not self.historical_data:
-            # print("No historical data to plot.")
-            return
+
+        # Fix tuple keys in relations_data
+        def convert_keys(obj):
+            if isinstance(obj, dict):
+                new_dict = {}
+                for k, v in obj.items():
+                    # Convert tuple keys to strings like "1,2"
+                    if isinstance(k, tuple):
+                        k = ",".join(map(str, k))
+                    new_dict[k] = convert_keys(v)
+                return new_dict
+            elif isinstance(obj, list):
+                return [convert_keys(item) for item in obj]
+            else:
+                return obj
+
+        cleaned_data = convert_keys(self.historical_data)
+
         time_of_creation = datetime.now().strftime("%Y-%m-%d_%I-%M-%S%p")
         ideal_file_name = f"output/logs/Civ_Sim_log_{time_of_creation}.json"
-        # In case of multiple sim_logs generated in the same second,..
+
+        # In case of multiple sim_logs generated in the same second
         if os.path.exists(ideal_file_name):
-            # Number this new entry,..
             counter = 2
             while os.path.exists(ideal_file_name):
-                # And go until that number creates a fresh entry.
-                ideal_file_name = f"output/logs/Civ_Sim_log_{time_of_creation}_{counter}.txt"
+                ideal_file_name = f"output/logs/Civ_Sim_log_{time_of_creation}_{counter}.json"
                 counter += 1
-        final_file_name = os.path.join(os.path.dirname(__file__), ideal_file_name)
-        with open(final_file_name, "at") as log:
-            log.write(str(self.historical_data))
-        # print(f"Log \"{ideal_file_name}\" has been written!")
+
+        final_file_path = os.path.join(os.path.dirname(__file__), ideal_file_name)
+
+        # Write as valid JSON
+        with open(final_file_path, "w", encoding="utf-8") as log_file:
+            json.dump(cleaned_data, log_file, indent=2)
+
+
 
     def generate_all_plots(self):
         '''
@@ -815,6 +832,8 @@ class Model():
         if PLOT_H6:
             plotting.generate_h6_plots(self.historical_data, save_path_prefix=os.path.join(output_dir, "h6_"))
         # print("Plot generation complete.")
+
+
 
 def log_to_plots(file_name):
     ''' Evaluates a civ_sim_log.txt file to write plots.

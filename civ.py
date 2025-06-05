@@ -50,10 +50,10 @@ class Civ:
         Civ.instances.append(self)                  # Added to track all civ instances
         # Attributes:
         if friendliness is None:
-            self.friendliness = random()
+            self.friendliness = random()  # Uniform in [0.0, 1.0)
         else:
-            self.friendliness = friendliness
-        self.friendliness = max(0, self.friendliness)
+            self.friendliness = float(friendliness)
+        self.friendliness = max(0.0, min(1.0, self.friendliness))
         print(f"Civ {self.civ_id} initialized with friendliness: {self.friendliness}")
         self.culture = max(0, culture)              # The attribute that determines how close a civ is to a culture victory.
         self.military = max(0, military)            # The attribute that determines a civ's odds of success in war.
