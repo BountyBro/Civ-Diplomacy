@@ -321,8 +321,7 @@ class Model():
                     planet_target = self.list_planets[int([planet_targets[0,0,0]][0])] if planet_targets.shape[0] == 1 else self.list_planets[int(planet_targets[np.argmin(planet_targets, axis= 0)[0,1], np.argmin(planet_targets, axis= 1)[0,0], 0])]
                     original_owner_civ = planet_target.get_civ() if planet_target else None
                     self.civs_war(actor, war_target, t, planet_target)
-                    # print(f"\tDesperation War: Civ {actor.get_id()} vs Civ {war_target.get_id()} (Defender). Target: P-{planet_target.get_id() if planet_target else 'None'}")
-                    interactions.append({"civ1": actor, "civ2": war_target, "type": "war", "attacker": actor, "defender": war_target})
+                    interactions.append({"civ1": actor, "civ2": war_target, "type": "war", "attacker": actor, "defender": war_target, "defender_target_planet_initial_pos": planet_target.get_pos() if planet_target else None})
                     civ_interaction_counts[actor.get_id()]['wars_participated'] += 1
                     civ_interaction_counts[war_target.get_id()]['wars_participated'] += 1
                     if planet_target and planet_target.get_civ() == actor and original_owner_civ == war_target:
@@ -355,8 +354,7 @@ class Model():
                     planet_target = self.list_planets[int([planet_targets[0,0,0]][0])] if planet_targets.shape[0] == 1 else self.list_planets[int(planet_targets[np.argmin(planet_targets, axis= 0)[0,1], np.argmin(planet_targets, axis= 1)[0,0], 0])]
                     original_owner_civ = planet_target.get_civ()
                     self.civs_war(actor, war_target, t, planet_target)
-                    # print(f"\tWarScore War: Civ {actor.get_id()} vs Civ {war_target.get_id()} (Defender). Target: P-{planet_target.get_id() if planet_target else 'None'}")
-                    interactions.append({"civ1": actor, "civ2": war_target, "type": "war", "attacker": actor, "defender": war_target})
+                    interactions.append({"civ1": actor, "civ2": war_target, "type": "war", "attacker": actor, "defender": war_target, "defender_target_planet_initial_pos": planet_target.get_pos() if planet_target else None})
                     civ_interaction_counts[actor.get_id()]['wars_participated'] += 1
                     civ_interaction_counts[war_target.get_id()]['wars_participated'] += 1
                     if planet_target and planet_target.get_civ() == actor and original_owner_civ == war_target:
@@ -420,11 +418,9 @@ class Model():
             if civ1.is_desparate and not civ2.is_desparate:
                 actual_attacker, actual_defender = civ1, civ2
                 declared_war_this_interaction = True
-                # print(f"\tDesperation War: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{targeted_planet_object.get_id() if targeted_planet_object else 'None'}")
             elif civ2.is_desparate and not civ1.is_desparate:
                 actual_attacker, actual_defender = civ2, civ1
                 declared_war_this_interaction = True
-                # print(f"\tDesperation War: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{targeted_planet_object.get_id() if targeted_planet_object else 'None'}")
             elif civ1.is_desparate and civ2.is_desparate:
                 if civ1.get_military() > civ2.get_military():
                     actual_attacker, actual_defender = civ1, civ2
@@ -434,7 +430,6 @@ class Model():
                     actual_attacker = civ1 if civ1.get_friendliness() <= civ2.get_friendliness() else civ2
                     actual_defender = civ2 if actual_attacker == civ1 else civ1
                 declared_war_this_interaction = True
-                # print(f"\tMutual Desperation War: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{targeted_planet_object.get_id() if targeted_planet_object else 'None'}")
 
             if declared_war_this_interaction:
                 interaction_details['type'] = 'war'
@@ -490,7 +485,6 @@ class Model():
                     interaction_details['defender'] = actual_defender
                     actual_attacker.war_initiations_this_turn += 1 # Track initiation
                     attacker_score_display = war_score_1_attacks_2 if actual_attacker == civ1 else war_score_2_attacks_1
-                    # print(f"\tWarScore War: Civ {actual_attacker.get_id()} (Attacker, Score: {attacker_score_display:.2f}) vs Civ {actual_defender.get_id()} (Defender). Target: P-{targeted_planet_object.get_id() if targeted_planet_object else 'None'}")
                     original_owner_civ = targeted_planet_object.get_civ() if targeted_planet_object else None
                     self.civs_war(actual_attacker, actual_defender, t, targeted_planet_object)
                     if targeted_planet_object and targeted_planet_object.get_civ() == actual_attacker and original_owner_civ == actual_defender:
@@ -501,7 +495,6 @@ class Model():
                     # 3. Cooperation (if no desperation or WarScore war)
                     if civ1.get_friendliness() == 1 and civ2.get_friendliness() == 1:
                         interaction_details['type'] = 'cooperation'
-                        # print(f"\tCooperation: Civilizations {civ1.get_id()} and {civ2.get_id()} are cooperating.")
                         self.civs_cooperate(civ1, civ2)
                     # 4. Low-Friendliness Aggression War (if no other war or cooperation)
                     elif civ1.get_friendliness() < AGGRESSION_FRIENDLINESS_THRESHOLD or civ2.get_friendliness() < AGGRESSION_FRIENDLINESS_THRESHOLD:
@@ -521,7 +514,6 @@ class Model():
                         interaction_details['attacker'] = actual_attacker
                         interaction_details['defender'] = actual_defender
                         actual_attacker.war_initiations_this_turn += 1 # Track initiation
-                        # print(f"\tAggression War: Civ {actual_attacker.get_id()} (Attacker) vs Civ {actual_defender.get_id()} (Defender). Target: P-{targeted_planet_object.get_id() if targeted_planet_object else 'None'}")
                         original_owner_civ = targeted_planet_object.get_civ() if targeted_planet_object else None
                         self.civs_war(actual_attacker, actual_defender, t, targeted_planet_object)
                         if targeted_planet_object and targeted_planet_object.get_civ() == actual_attacker and original_owner_civ == actual_defender:
@@ -531,7 +523,6 @@ class Model():
                     # 5. Trade (if nothing else)
                     else: 
                         interaction_details['type'] = 'trade'
-                        # print(f"\tTrade: Civilizations {civ1.get_id()} and {civ2.get_id()} are trading.")
                         self.civs_trade(civ1, civ2)
             
             if interaction_details['type'] != 'none':
@@ -545,8 +536,6 @@ class Model():
                     defender = interaction_details.get('defender')
                     if attacker and attacker.get_id() in civ_interaction_counts:
                         civ_interaction_counts[attacker.get_id()]['wars_participated'] += 1
-                        # War initiations are already tracked by civ.war_initiations_this_turn, reset each turn.
-                        # This count here is just for this interaction batch.
                     if defender and defender.get_id() in civ_interaction_counts:
                         civ_interaction_counts[defender.get_id()]['wars_participated'] += 1
                 
